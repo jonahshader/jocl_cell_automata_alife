@@ -33,7 +33,7 @@ public class CLIntArray {
     /**
      * copies this array from host to device
      */
-    public void send() {
+    public void copyToDevice() {
         clEnqueueWriteBuffer(commandQueue, memory, true, 0,
                 Sizeof.cl_int * array.length, hostMemPointer,
                 0, null, null);
@@ -42,7 +42,7 @@ public class CLIntArray {
     /**
      * copies this array from device to host
      */
-    public void retrieve() {
+    public void copyFromDevice() {
         clEnqueueReadBuffer(commandQueue, memory, true, 0,
                 Sizeof.cl_int * array.length, hostMemPointer,
                 0, null, null);

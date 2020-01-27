@@ -15,8 +15,6 @@ import java.util.stream.Stream;
 import static org.jocl.CL.CL_DEVICE_TYPE_ALL;
 
 public class OpenCLSetup {
-    private ArrayList<int[]> intArrays = new ArrayList<>();
-    private ArrayList<float[]> floatArrays = new ArrayList<>();
     private ArrayList<Pointer> pointers = new ArrayList<>();
     private ArrayList<cl_mem> memory = new ArrayList<>();
 
