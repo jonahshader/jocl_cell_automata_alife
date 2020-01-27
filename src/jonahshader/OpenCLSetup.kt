@@ -1,4 +1,0 @@
-package jonahshader
-
-object OpenCLSetup {
-}
