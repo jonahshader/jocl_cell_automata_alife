@@ -1,6 +1,7 @@
 package jonahshader
 
 import processing.core.PApplet
+import processing.event.KeyEvent
 
 class App : PApplet() {
     companion object {
@@ -24,24 +25,41 @@ class App : PApplet() {
     }
 
     override fun draw() {
-        do {
-            // compute
-        } while (noDraw)
-        // draw
+        if (noDraw) {
+            for (i in 0 until 100) {
+
+            }
+        } else {
+
+        }
+        background(0)
+        textAlign(LEFT, TOP)
+        text("FPS: $frameRate", 0f, 0f)
     }
 
     override fun keyPressed() {
-        when (key.toLowerCase()) {
+//        when (key.toLowerCase()) {
+//            noDrawToggleKey -> {
+//                noDrawKeyPressed = true
+//                noDraw = !noDraw
+//            }
+//        }
+    }
+
+    override fun keyPressed(event: KeyEvent?) {
+        when (event?.key?.toLowerCase()) {
             noDrawToggleKey -> {
                 noDrawKeyPressed = true
                 noDraw = !noDraw
+                println("fuck")
             }
         }
     }
 
     override fun keyReleased() {
         when (key.toLowerCase()) {
-            noDrawToggleKey -> noDrawKeyPressed = false
+            noDrawToggleKey -> {noDrawKeyPressed = false
+            println("fuck")}
         }
     }
 }

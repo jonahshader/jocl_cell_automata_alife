@@ -1,24 +1,16 @@
-package jonahshader.opencl;
+package jonahshader.opencl
 
-import org.jocl.*;
+import org.jocl.*
 
-import static org.jocl.CL.*;
+class CLIntArray(private val array: IntArray, context: cl_context, private val commandQueue: cl_command_queue) {
+    private val memory: cl_mem
+    private val hostMemPointer: Pointer = Pointer.to(array)
+    private val deviceMemPointer: Pointer
 
-public class CLIntArray {
-    private int[] array;
-    private cl_mem memory;
-    private cl_command_queue commandQueue;
-    private Pointer hostMemPointer;
-    private Pointer deviceMemPointer;
-
-    public CLIntArray(int[] array, cl_context context, cl_command_queue commandQueue) {
-        this.array = array;
-        this.commandQueue = commandQueue;
-
-        hostMemPointer = Pointer.to(array);
-        memory = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
-                Sizeof.cl_int * array.length, hostMemPointer, null);
-        deviceMemPointer = Pointer.to(memory);
+    init {
+        memory = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE or CL.CL_MEM_COPY_HOST_PTR,
+                Sizeof.cl_int * array.size.toLong(), hostMemPointer, null)
+        deviceMemPointer = Pointer.to(memory)
     }
 
     /**
@@ -26,25 +18,26 @@ public class CLIntArray {
      * @param kernel - the kernel
      * @param argIndex - the index of the argument
      */
-    public void registerAndSendArgument(cl_kernel kernel, int argIndex) {
-        clSetKernelArg(kernel, argIndex, Sizeof.cl_mem, deviceMemPointer);
+    fun registerAndSendArgument(kernel: cl_kernel?, argIndex: Int) {
+        CL.clSetKernelArg(kernel, argIndex, Sizeof.cl_mem.toLong(), deviceMemPointer)
     }
 
     /**
      * copies this array from host to device
      */
-    public void copyToDevice() {
-        clEnqueueWriteBuffer(commandQueue, memory, true, 0,
-                Sizeof.cl_int * array.length, hostMemPointer,
-                0, null, null);
+    fun copyToDevice() {
+        CL.clEnqueueWriteBuffer(commandQueue, memory, true, 0,
+                Sizeof.cl_int * array.size.toLong(), hostMemPointer,
+                0, null, null)
     }
 
     /**
      * copies this array from device to host
      */
-    public void copyFromDevice() {
-        clEnqueueReadBuffer(commandQueue, memory, true, 0,
-                Sizeof.cl_int * array.length, hostMemPointer,
-                0, null, null);
+    fun copyFromDevice() {
+        CL.clEnqueueReadBuffer(commandQueue, memory, true, 0,
+                Sizeof.cl_int * array.size.toLong(), hostMemPointer,
+                0, null, null)
     }
+
 }

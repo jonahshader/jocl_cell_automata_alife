@@ -1,45 +1,100 @@
-package jonahshader.opencl;
+package jonahshader.opencl
 
-import org.jocl.Pointer;
-import org.jocl.cl_command_queue;
-import org.jocl.cl_kernel;
-import org.jocl.cl_mem;
+import org.jocl.*
+import java.io.IOException
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Paths
+import java.util.*
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.stream.Stream;
+/**
+ * this OpenCLProgram class takes in the filename of a .cl OpenCL program and a list of kernel names
+ * that are found in the program. it then generates the corresponding kernels. you can run a kernel by
+ * calling executeKernel and providing the name of the kernel.
+ *
+ * this class should only be created once per session.
+ */
+class OpenCLProgram(filename: String, kernelNames: Array<String>) {
+    private val platformIndex = 0
+    private val deviceType = CL.CL_DEVICE_TYPE_ALL
+    private val deviceIndex = 0
 
-import static org.jocl.CL.CL_DEVICE_TYPE_ALL;
+    private lateinit var commandQueue: cl_command_queue
+    private val kernels = HashMap<String, cl_kernel>()
+    private lateinit var globalWorkSize: LongArray
+    private val programSource: String
+    private lateinit var program: cl_program
 
-public class OpenCLSetup {
-    private ArrayList<Pointer> pointers = new ArrayList<>();
-    private ArrayList<cl_mem> memory = new ArrayList<>();
-
-
-    private final int platformIndex = 0;
-    private final long deviceType = CL_DEVICE_TYPE_ALL;
-    private final int deviceIndex = 0;
-
-    private cl_command_queue commandQueue;
-    private cl_kernel kernel;
-    private long[] global_work_size;
-
-    private static String programSource;
-
-    public OpenCLSetup(String filename) {
-        StringBuilder stringBuilder = new StringBuilder();
-        try (Stream<String> stream = Files.lines(Paths.get(filename), StandardCharsets.UTF_8)) {
-            stream.forEach(s -> stringBuilder.append(s).append("\n"));
-        } catch (IOException e) {
-            e.printStackTrace();
+    init { // get source code from file
+        val stringBuilder = StringBuilder()
+        try {
+            Files.lines(Paths.get(filename), StandardCharsets.UTF_8).use { stream -> stream.forEach { s: String? -> stringBuilder.append(s).append("\n") } }
+        } catch (e: IOException) {
+            e.printStackTrace()
         }
-        programSource = stringBuilder.toString();
-
+        programSource = stringBuilder.toString()
+        // do a bunch of opencl setup stuff
+        openCLInit()
+        // create kernels from opencl program
+        for (i in kernelNames.indices) {
+            kernels[kernelNames[i]] = CL.clCreateKernel(program, kernelNames[i], null)
+        }
     }
 
+    fun getKernel(kernelName: String): cl_kernel? {
+        return kernels[kernelName]
+    }
 
+    fun executeKernel(kernelName: String, range: Long) {
+        CL.clEnqueueNDRangeKernel(commandQueue, kernels[kernelName],
+                1, null, longArrayOf(range),
+                null, 0, null, null)
+    }
+
+    // opencl setup stuff
+    private fun openCLInit() {
+        CL.setExceptionsEnabled(true)
+
+        // Obtain the number of platforms
+        val numPlatformsArray = IntArray(1)
+        CL.clGetPlatformIDs(0, null, numPlatformsArray)
+        val numPlatforms = numPlatformsArray[0]
+
+        // Obtain a platform ID
+        val platforms = arrayOfNulls<cl_platform_id>(numPlatforms)
+        CL.clGetPlatformIDs(platforms.size, platforms, null)
+        val platform = platforms[platformIndex]
+
+        // Initialize the context properties
+        val contextProperties = cl_context_properties()
+        contextProperties.addProperty(CL.CL_CONTEXT_PLATFORM.toLong(), platform)
+
+        // Obtain the number of devices for the platform
+        val numDevicesArray = IntArray(1)
+        CL.clGetDeviceIDs(platform, deviceType, 0, null, numDevicesArray)
+        val numDevices = numDevicesArray[0]
+
+        // Obtain a device ID
+        val devices = arrayOfNulls<cl_device_id>(numDevices)
+        CL.clGetDeviceIDs(platform, deviceType, numDevices, devices, null)
+        val device = devices[deviceIndex]
+
+        // Create a context for the selected device
+        val context = CL.clCreateContext(
+                contextProperties, 1, arrayOf(device),
+                null, null, null)
+
+        // Create a command-queue for the selected device
+        val properties = cl_queue_properties()
+        commandQueue = CL.clCreateCommandQueueWithProperties(
+                context, device, properties, null)
+
+        // Create the program from the source code
+        program = CL.clCreateProgramWithSource(context,
+                1, arrayOf(programSource), null, null)
+
+        // Build the program
+        CL.clBuildProgram(program, 0, null, null, null, null)
+    }
 
 }
