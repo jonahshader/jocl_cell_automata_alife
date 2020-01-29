@@ -21,7 +21,6 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
 
     private lateinit var commandQueue: cl_command_queue
     private val kernels = HashMap<String, cl_kernel>()
-    private lateinit var globalWorkSize: LongArray
     private val programSource: String
     private lateinit var program: cl_program
 
