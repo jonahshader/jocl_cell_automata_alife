@@ -39,5 +39,4 @@ class CLIntArray(private val array: IntArray, context: cl_context, private val c
                 Sizeof.cl_int * array.size.toLong(), hostMemPointer,
                 0, null, null)
     }
-
 }
