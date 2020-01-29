@@ -1,7 +1,12 @@
 int wrap(int value, int range);
-int[] indexToPos(int index, global int* worldSize);
+int indexToX(int index, global int* worldSize);
+int indexToY(int index, global int* worldSize);
 int posToIndexWrapped(int x, int y, global int* worldSize);
 bool isCreature(int worldVal);
+bool isCreature(int x, int y, global int* worldSize);
+int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld, global char* moveX, global char* moveY);
+bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize, global int* readWorld, global char* moveX, global char* moveY);
+int getCell(int x, int y, global int* worldSize, global int* readWorld);
 
 
 // this kernel runs per creature
@@ -29,11 +34,10 @@ movementKernel(global int* worldSize, global char* writingToA,
   if (moveX[creature] != 0 || moveY[creature] != 0)
   {
     // check position if there is a creature there already
-    int moveToPos[2] = indexToPos();
-    moveToPos[0] += moveX[creature];
-    moveToPos[1] += moveY[creature];
+    int moveToX = indexToX(creature, worldSize) + moveX[creature];
+    int moveToY = indexToY(creature, worldSize) + moveY[creature];
 
-    int cellAtPos = readWorld[posToIndexWrapped(moveToPos[0], moveToPos[1], worldSize)];
+    int cellAtPos = readWorld[posToIndexWrapped(moveToX, moveToY, worldSize)];
 
     // if there is not a creature at the desired spot,
     if (!isCreature(cellAtPos))
@@ -41,6 +45,19 @@ movementKernel(global int* worldSize, global char* writingToA,
       // check 3 neighbors to see if anyone else is trying to to there
       // if not, go there, set lastMoveSuccess to true
       // else, set lastMoveSuccess to false
+      int numMovingHere = numCreaturesMovingHere(moveToX, moveToY, worldSize, readWorld, moveX, moveY);
+      if (numMovingHere == 1)
+      {
+        // we can move successfully because we are the only one trying to go there
+        lastMoveSuccess[creature] = true;
+
+        
+      }
+      else
+      {
+        // we cannot move successfully, conflict present
+        lastMoveSuccess[creature] = false;
+      }
     }
   }
 
@@ -53,11 +70,14 @@ inline int wrap(int value, int range)
   return out;
 }
 
-inline int[] indexToPos(int index, global int* worldSize)
+inline int indexToX(int index, global int* worldSize)
 {
-  int out[2];
-  out[0] = index % worldSize[0];
-  out[1] = index / worldSize[0];
+  return index % worldSize[0];
+}
+
+inline int indexToY(int index, global int* worldSize)
+{
+  return index / worldSize[0];
 }
 
 inline int posToIndexWrapped(int x, int y, global int* worldSize)
@@ -68,4 +88,54 @@ inline int posToIndexWrapped(int x, int y, global int* worldSize)
 inline bool isCreature(int worldValue)
 {
   return worldValue >= 0;
+}
+
+inline bool isCreature(int x, int y, global int* worldSize)
+{
+  return isCreature(posToIndexWrapped(x, y, worldSize));
+}
+
+// assuming x y already wrapped
+inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld, global char* moveX, global char* moveY)
+{
+  int num = 0;
+  //check top
+  int xTop = x;
+  int yTop = y - 1;
+  num += isMovingHere(x, y, xTop, yTop, worldSize, readWorld, moveX, moveY);
+  // check bottom
+  int xBottom = x;
+  int yBottom = y + 1;
+  num += isMovingHere(x, y, xBottom, yBottom, worldSize, readWorld, moveX, moveY);
+  // check left
+  int xLeft = x - 1;
+  int yLeft = y;
+  num += isMovingHere(x, y, xLeft, yLeft, worldSize, readWorld, moveX, moveY);
+  // check right
+  int xRight = x + 1;
+  int yRight = y;
+  num += isMovingHere(x, y, xRight, yRight, worldSize, readWorld, moveX, moveY);
+
+  return num;
+}
+
+// todo: optimize out unnessesary wrapping
+inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize, global int* readWorld, global char* moveX, global char* moveY)
+{
+  int cell = getCell(xCell, yCell, worldSize, readWorld);
+  if (isCreature(cell))
+  {
+    int creatureXDest = wrap(moveX[cell] + xCell, worldSize[0]);
+    int creatureYDest = wrap(moveY[cell] + yCell;, worldSize[1]);
+    int xDestWrapped = wrap(xDest, worldSize[0]);
+    int yDestWrapped = wrap(yDest, worldSize[1]);
+
+    return (creatureXDest == xDestWrapped && creatureYDest == yDestWrapped);
+  }
+  return false;
+}
+
+inline int getCell(int x, int y, global int* worldSize, global int* readWorld)
+{
+  return readWorld[posToIndexWrapped(x, y, worldSize)];
 }
