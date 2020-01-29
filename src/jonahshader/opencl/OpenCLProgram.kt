@@ -23,17 +23,14 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
     private val kernels = HashMap<String, cl_kernel>()
     private val programSource: String
     private lateinit var program: cl_program
+    private lateinit var context: cl_context
 
     init { // get source code from file
         val stringBuilder = StringBuilder()
-        try {
-            Files.lines(Paths.get(filename), StandardCharsets.UTF_8).use { stream -> stream.forEach { s: String? -> stringBuilder.append(s).append("\n") } }
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
+        Files.lines(Paths.get(filename), StandardCharsets.UTF_8).use { stream -> stream.forEach { s: String? -> stringBuilder.append(s).append("\n") } }
         programSource = stringBuilder.toString()
         // do a bunch of opencl setup stuff
-        openCLInit()
+        clInit()
         // create kernels from opencl program
         for (i in kernelNames.indices) {
             kernels[kernelNames[i]] = CL.clCreateKernel(program, kernelNames[i], null)
@@ -45,13 +42,17 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
     }
 
     fun executeKernel(kernelName: String, range: Long) {
-        CL.clEnqueueNDRangeKernel(commandQueue, kernels[kernelName],
+        CL.clEnqueueNDRangeKernel(commandQueue, kernels[kernelName]!!,
                 1, null, longArrayOf(range),
                 null, 0, null, null)
     }
 
+    fun createCLIntArray(size: Int) : CLIntArray = CLIntArray(IntArray(size), context, commandQueue)
+
+    fun createCLCharArray(size: Int) : CLCharArray = CLCharArray(CharArray(size), context, commandQueue)
+
     // opencl setup stuff
-    private fun openCLInit() {
+    private fun clInit() {
         CL.setExceptionsEnabled(true)
 
         // Obtain the number of platforms
@@ -79,7 +80,7 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
         val device = devices[deviceIndex]
 
         // Create a context for the selected device
-        val context = CL.clCreateContext(
+        context = CL.clCreateContext(
                 contextProperties, 1, arrayOf(device),
                 null, null, null)
 
@@ -95,5 +96,7 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
         // Build the program
         CL.clBuildProgram(program, 0, null, null, null, null)
     }
+
+
 
 }

@@ -2,7 +2,7 @@ package jonahshader.opencl
 
 import org.jocl.*
 
-class CLIntArray(val array: IntArray, context: cl_context, private val commandQueue: cl_command_queue) {
+class CLCharArray(val array: CharArray, context: cl_context, private val commandQueue: cl_command_queue) {
     private val memory: cl_mem
     private val hostMemPointer: Pointer = Pointer.to(array)
     private val deviceMemPointer: Pointer

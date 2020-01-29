@@ -16,9 +16,14 @@ kernel void
 movementKernel(global int* worldSize, global char* writingToA,
   global int* worldA, global int* worldB,
   global char* moveX, global char* moveY, global int* creatureX, global int* creatureY,
+  global int* pCreatureX, global int* pCreatureY,
   global char* lastMoveSuccess)
 {
   int creatureIndex = get_global_id(0);
+  //copy current pos to previous pos
+  pCreatureX[creatureIndex] = creatureX[creatureIndex];
+  pCreatureY[creatureIndex] = creatureY[creatureIndex];
+
   /* figure out which world is being written to
      and which one is being read from */
   global const int* readWorld, writeWorld;
@@ -37,8 +42,10 @@ movementKernel(global int* worldSize, global char* writingToA,
   if (moveX[creatureIndex] != 0 || moveY[creatureIndex] != 0)
   {
     // check position if there is a creature there already
-    int moveToX = indexToX(creatureX[creatureIndex], worldSize) + moveX[creatureIndex];
-    int moveToY = indexToY(creatureY[creatureIndex], worldSize) + moveY[creatureIndex];
+    int cx = creatureX[creatureIndex];
+    int cy = creatureY[creatureIndex];
+    int moveToX = indexToX(cx, worldSize) + moveX[creatureIndex];
+    int moveToY = indexToY(cy, worldSize) + moveY[creatureIndex];
 
     int cellAtPos = readWorld[posToIndexWrapped(moveToX, moveToY, worldSize)];
 
@@ -53,7 +60,9 @@ movementKernel(global int* worldSize, global char* writingToA,
       {
         // we can move successfully because we are the only one trying to go there
         lastMoveSuccess[creatureIndex] = true;
+        // update location in world
         writeWorld[posToIndexWrapped(moveToX, moveToY)] = creatureIndex;
+        // update position
         creatureX[creatureIndex] = moveToX;
         creatureY[creatureIndex] = moveToY;
       }
@@ -61,19 +70,49 @@ movementKernel(global int* worldSize, global char* writingToA,
       {
         // we cannot move successfully, conflict present
         lastMoveSuccess[creatureIndex] = false;
-        //writeWorld[] TODO:
+        // set location in world to the current position because we could not move
+        writeWorld[posToIndexWrapped(cx, cy, worldSize)] = creatureIndex;
       }
+    }
+    else
+    {
+      // we cannot move successfully, trying to move where a creature is
+      lastMoveSuccess[creatureIndex] = false;
+      // set location in world to the current position because we could not move
+      writeWorld[posToIndexWrapped(cx, cy, worldSize)] = creatureIndex;
     }
   }
 }
 
+// this kernel is called directly after movementKernel.
+// it removes creatures from the readWorld
 kernel void
 movementCleanupKernel(global int* worldSize, global char* writingToA,
   global int* worldA, global int* worldB,
-  global int* creatureX, global int* creatureY, global char* lastMoveSuccess)
+  global int* pCreatureX, global int* pCreatureY)
 {
   int creatureIndex = get_global_id(0);
-  if (lastMoveSuccess[])
+
+  /* figure out which world is being written to
+     and which one is being read from */
+  global const int* readWorld, writeWorld;
+  if (writingToA[0])
+  {
+    writeWorld = worldA;
+    readWorld = worldB;
+  }
+  else
+  {
+    writeWorld = worldB;
+    readWorld = worldA;
+  }
+
+  // delete creatures from readWorld
+  int cx = pCreatureX[creatureIndex];
+  int cy = pCreatureY[creatureIndex];
+
+  // set position in world where creature was to -1 to indicate empty space
+  readWorld[posToIndexWrapped(cx, cy, worldSize)] = -1;
 }
 
 inline int wrap(int value, int range)
