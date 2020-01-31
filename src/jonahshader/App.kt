@@ -6,8 +6,8 @@ import processing.event.KeyEvent
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 1920
-        const val SCREEN_HEIGHT = 1080
+        const val SCREEN_WIDTH = 512
+        const val SCREEN_HEIGHT = 512
 
         const val WORLD_WIDTH = 8192
         const val WORLD_HEIGHT = 8192
@@ -17,7 +17,7 @@ class App : PApplet() {
     private var noDrawKeyPressed = false
     private var noDraw = false
 
-    private val sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, 2073600/40, "main_cl_program.cl")
+    private val sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, 2073600/8, "main_cl_program.cl")
 
     override fun settings() {
         size(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -30,7 +30,7 @@ class App : PApplet() {
 
     override fun draw() {
         if (noDraw) {
-            for (i in 0 until 100) {
+            for (i in 0 until 1000) {
                 sim.run()
             }
         } else {

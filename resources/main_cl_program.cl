@@ -47,11 +47,10 @@ movementKernel(global int* worldSize, global int* writingToA,
   if (moveX[creatureIndex] != 0 || moveY[creatureIndex] != 0)
   {
     // check position if there is a creature there already
-
     int moveToX = wrap(cx + moveX[creatureIndex], worldSize[0]);
     int moveToY = wrap(cy + moveY[creatureIndex], worldSize[1]);
 
-    int cellAtPos = readWorld[posToIndexWrapped(moveToX, moveToY, worldSize)];
+    int cellAtPos = readWorld[moveToX + moveToY * worldSize[0]];
 
     // if there is not a creature at the desired spot,
     if (cellAtPos < 0)
@@ -69,7 +68,7 @@ movementKernel(global int* worldSize, global int* writingToA,
       }
     }
   }
-  writeWorld[posToIndexWrapped(newX, newY, worldSize)] = creatureIndex;
+  writeWorld[newX + newY * worldSize[0]] = creatureIndex;
   // update position
   creatureX[creatureIndex] = newX;
   creatureY[creatureIndex] = newY;
@@ -107,7 +106,7 @@ movementCleanupKernel(global int* worldSize, global int* writingToA,
   int cy = pCreatureY[creatureIndex];
 
   // set position in world where creature was to -1 to indicate empty space
-  readWorld[posToIndexWrapped(cx, cy, worldSize)] = -1;
+  readWorld[cx + cy * worldSize[0]] = -1;
 }
 
 inline int wrap(int value, int range)
@@ -161,7 +160,7 @@ inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global in
   return num;
 }
 
-// todo: optimize out unnessesary wrapping
+// assuming xDest and yDest is already wrapped
 inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize, global int* readWorld, global short* moveX, global short* moveY)
 {
   int cell = getCell(xCell, yCell, worldSize, readWorld);
@@ -169,10 +168,8 @@ inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int*
   {
     int creatureXDest = wrap(moveX[cell] + xCell, worldSize[0]);
     int creatureYDest = wrap(moveY[cell] + yCell, worldSize[1]);
-    int xDestWrapped = wrap(xDest, worldSize[0]);
-    int yDestWrapped = wrap(yDest, worldSize[1]);
 
-    return ((creatureXDest == xDestWrapped) && (creatureYDest == yDestWrapped));
+    return ((creatureXDest == xDest) && (creatureYDest == yDest));
   }
   else
   {
