@@ -6,8 +6,8 @@ import processing.event.KeyEvent
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 640
-        const val SCREEN_HEIGHT = 480
+        const val SCREEN_WIDTH = 1280
+        const val SCREEN_HEIGHT = 720
 
         const val WORLD_WIDTH = 8192
         const val WORLD_HEIGHT = 8192
@@ -39,7 +39,7 @@ class App : PApplet() {
         loadPixels()
         updatePixels()
 
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, 2073600/8, "main_cl_program.cl")
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, 8192 * 128, "main_cl_program.cl")
     }
 
     override fun draw() {

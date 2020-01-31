@@ -110,8 +110,8 @@ renderKernel(global int* worldSize, global int* writingToA,
   int screenX = index % screenSizeCenterScale[0];
   int screenY = index / screenSizeCenterScale[0];
 
-  int screenXCentered = screenX - (screenSizeCenterScale[0] / 2);
-  int screenYCentered = screenY - (screenSizeCenterScale[1] / 2);
+  float screenXCentered = screenX - (screenSizeCenterScale[0] / 2.0f);
+  float screenYCentered = screenY - (screenSizeCenterScale[1] / 2.0f);
 
   int worldX = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
   int worldY = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
