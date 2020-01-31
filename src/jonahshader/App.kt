@@ -6,8 +6,8 @@ import processing.event.KeyEvent
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 512
-        const val SCREEN_HEIGHT = 512
+        const val SCREEN_WIDTH = 640
+        const val SCREEN_HEIGHT = 480
 
         const val WORLD_WIDTH = 8192
         const val WORLD_HEIGHT = 8192
@@ -17,7 +17,16 @@ class App : PApplet() {
     private var noDrawKeyPressed = false
     private var noDraw = false
 
-    private val sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, 2073600/8, "main_cl_program.cl")
+    private var leftPressed = false
+    private var rightPressed = false
+    private var upPressed = false
+    private var downPressed = false
+
+    private var zoom = 1
+    private var xCam = 0
+    private var yCam = 0
+
+    private lateinit var sim: Simulator
 
     override fun settings() {
         size(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -26,37 +35,27 @@ class App : PApplet() {
 
     override fun setup() {
         frameRate(60f)
+
+        loadPixels()
+        updatePixels()
+
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, 2073600/8, "main_cl_program.cl")
     }
 
     override fun draw() {
-        if (noDraw) {
-            for (i in 0 until 1000) {
+        if (noDraw)
+            for (i in 0 until 1000)
                 sim.run()
-            }
-        } else {
+        else {
             sim.run()
+            if (upPressed) yCam -= max(8/zoom, 1)
+            if (downPressed) yCam += max(8/zoom, 1)
+            if (leftPressed) xCam -= max(8/zoom, 1)
+            if (rightPressed) xCam += max(8/zoom, 1)
         }
-//        sim.run()
 
         loadPixels()
-        val world = sim.getUpdatedWorld()
-
-        for (y in 0 until SCREEN_HEIGHT) {
-            for (x in 0 until SCREEN_WIDTH) {
-                pixels[x + y * SCREEN_WIDTH] = color(if (world[x + y * WORLD_WIDTH] == -1) 0 else 255)
-            }
-        }
-//        for (i in 0 until SCREEN_WIDTH * SCREEN_HEIGHT) {
-////            if (world[i] == -1) {
-////                pixels[i] = color(0)
-////            } else {
-////                pixels[i] = color((world[i].toInt()) * 255f / 130000.toFloat())
-////            }
-//
-//            pixels[i] = color(if (world[i] == -1) 0 else 255)
-//
-//        }
-
+        sim.render(xCam, yCam, zoom)
         updatePixels()
 
         textAlign(LEFT, TOP)
@@ -71,12 +70,26 @@ class App : PApplet() {
                 noDrawKeyPressed = true
                 noDraw = !noDraw
             }
+            'w' -> upPressed = true
+            'a' -> leftPressed = true
+            's' -> downPressed = true
+            'd' -> rightPressed = true
+            'e' -> zoom *= 2
+            'q' -> {
+                zoom /= 2
+                zoom = max(zoom, 1)
+            }
         }
     }
 
     override fun keyReleased() {
         when (key.toLowerCase()) {
             noDrawToggleKey -> noDrawKeyPressed = false
+            'w' -> upPressed = false
+            'a' -> leftPressed = false
+            's' -> downPressed = false
+            'd' -> rightPressed = false
+
         }
     }
 }

@@ -2,9 +2,10 @@ package jonahshader
 
 import jonahshader.opencl.CLIntArray
 import jonahshader.opencl.OpenCLProgram
+import processing.core.PApplet
 
-class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val numCreatures: Int, openClFilename: String) {
-    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel"))
+class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String) {
+    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel", "renderKernel"))
 
     private var localViewUpdated = false
 
@@ -20,6 +21,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val pCreatureX = clp.createCLIntArray(numCreatures)
     private val pCreatureY = clp.createCLIntArray(numCreatures)
     private val lastMoveSuccess = clp.createCLShortArray(numCreatures)
+    private val screenSizeCenterScale = clp.createCLIntArray(5)
+    private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
 
     init {
         initWorld()
@@ -48,6 +51,15 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureX.registerAndSendArgument(movementCleanupKernel, i++)
         pCreatureY.registerAndSendArgument(movementCleanupKernel, i++)
 
+        val renderKernel = clp.getKernel("renderKernel")
+        i = 0
+        worldSize.registerAndSendArgument(renderKernel, i++)
+        writingToA.registerAndSendArgument(renderKernel, i++)
+        worldA.registerAndSendArgument(renderKernel, i++)
+        worldB.registerAndSendArgument(renderKernel, i++)
+        screenSizeCenterScale.registerAndSendArgument(renderKernel, i++)
+        screen.registerAndSendArgument(renderKernel, i++)
+
         worldSize.copyToDevice()
         writingToA.copyToDevice()
         worldA.copyToDevice()
@@ -59,11 +71,19 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureX.copyToDevice()
         pCreatureY.copyToDevice()
         lastMoveSuccess.copyToDevice()
+        screenSizeCenterScale.copyToDevice()
+        screen.copyToDevice()
     }
 
     private fun initWorld() {
         worldSize.array[0] = worldWidth
         worldSize.array[1] = worldHeight
+
+        screenSizeCenterScale.array[0] = graphics.width
+        screenSizeCenterScale.array[1] = graphics.height
+        screenSizeCenterScale.array[2] = 0
+        screenSizeCenterScale.array[3] = 1
+        screenSizeCenterScale.array[4] = 1
 
         // init worlds to -1
         for (i in 0 until worldWidth * worldHeight) {
@@ -89,13 +109,12 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
                 val x = (Math.random() * worldWidth).toInt()
                 val y = (Math.random() * worldHeight).toInt()
 
-                if (worldA.array[x + y * worldWidth].toInt() == -1) {
+                if (worldA.array[x + y * worldWidth] == -1) {
                     creatureX.array[i] = x
                     creatureY.array[i] = y
                     pCreatureX.array[i] = x
                     pCreatureY.array[i] = y
                     worldA.array[x + y * worldWidth] = i
-//                    worldB.array[x + y * worldWidth] = i.toShort()
                     findingSpotForCreature = false
                 }
             }
@@ -115,6 +134,18 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
         writingToA.copyToDevice()
         localViewUpdated = false
+        clp.waitForCL()
+    }
+
+    fun render(xCenter: Int, yCenter: Int, zoom: Int) {
+        assert(zoom >= 1)
+        screenSizeCenterScale.array[2] = xCenter
+        screenSizeCenterScale.array[3] = yCenter
+        screenSizeCenterScale.array[4] = zoom
+        screenSizeCenterScale.copyToDevice()
+        clp.executeKernel("renderKernel", (graphics.width * graphics.height).toLong())
+        clp.waitForCL()
+        screen.copyFromDevice()
         clp.waitForCL()
     }
 

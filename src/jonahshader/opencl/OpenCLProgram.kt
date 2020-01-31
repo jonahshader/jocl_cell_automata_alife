@@ -19,11 +19,11 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
     private val deviceType = CL.CL_DEVICE_TYPE_ALL
     private val deviceIndex = 0
 
-    private lateinit var commandQueue: cl_command_queue
+    lateinit var commandQueue: cl_command_queue
     private val kernels = HashMap<String, cl_kernel>()
     private val programSource: String
     private lateinit var program: cl_program
-    private lateinit var context: cl_context
+    lateinit var context: cl_context
 
     init { // get source code from file
         val stringBuilder = StringBuilder()

@@ -1,3 +1,6 @@
+#define WHITE (0xffffffff)
+#define BLACK (0xff000000)
+
 int wrap(int value, int range);
 // int indexToX(int index, global int* worldSize);
 // int indexToY(int index, global int* worldSize);
@@ -87,19 +90,7 @@ movementCleanupKernel(global int* worldSize, global int* writingToA,
 
   /* figure out which world is being written to
      and which one is being read from */
-  global int* readWorld;
-  global int* writeWorld;
-
-  if (writingToA[0] == 1)
-  {
-    writeWorld = worldA;
-    readWorld = worldB;
-  }
-  else
-  {
-    writeWorld = worldB;
-    readWorld = worldA;
-  }
+  global int* readWorld = writingToA[0] ? worldB : worldA;
 
   // delete creatures from readWorld
   int cx = pCreatureX[creatureIndex];
@@ -107,6 +98,29 @@ movementCleanupKernel(global int* worldSize, global int* writingToA,
 
   // set position in world where creature was to -1 to indicate empty space
   readWorld[cx + cy * worldSize[0]] = -1;
+}
+
+// screenSizeCenterScale is an int array of size 5. width, height, xCenter, yCenter, pixelsPerCell
+kernel void
+renderKernel(global int* worldSize, global int* writingToA,
+  global int* worldA, global int* worldB,
+  global int* screenSizeCenterScale, global int* screen)
+{
+  int index = get_global_id(0);
+  int screenX = index % screenSizeCenterScale[0];
+  int screenY = index / screenSizeCenterScale[0];
+
+  int screenXCentered = screenX - (screenSizeCenterScale[0] / 2);
+  int screenYCentered = screenY - (screenSizeCenterScale[1] / 2);
+
+  int worldX = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
+  int worldY = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
+
+  /* figure out which world is being written to
+     and which one is being read from */
+  global int* readWorld = writingToA[0] ? worldB : worldA;
+
+  screen[index] = readWorld[posToIndexWrapped(worldX, worldY, worldSize)] == -1 ? BLACK : WHITE;
 }
 
 inline int wrap(int value, int range)
