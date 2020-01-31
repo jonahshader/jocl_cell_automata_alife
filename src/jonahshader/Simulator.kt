@@ -89,13 +89,13 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
                 val x = (Math.random() * worldWidth).toInt()
                 val y = (Math.random() * worldHeight).toInt()
 
-                if (worldB.array[x + y * worldWidth].toInt() == -1) {
+                if (worldA.array[x + y * worldWidth].toInt() == -1) {
                     creatureX.array[i] = x
                     creatureY.array[i] = y
                     pCreatureX.array[i] = x
                     pCreatureY.array[i] = y
-//                    worldA.array[x + y * worldWidth] = i.toShort()
-                    worldB.array[x + y * worldWidth] = i.toShort()
+                    worldA.array[x + y * worldWidth] = i.toShort()
+//                    worldB.array[x + y * worldWidth] = i.toShort()
                     findingSpotForCreature = false
                 }
             }

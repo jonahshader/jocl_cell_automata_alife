@@ -43,7 +43,12 @@ class App : PApplet() {
         for (i in 0 until SCREEN_WIDTH * SCREEN_HEIGHT) {
 //            stroke(color(if (world[i].toInt() == 0) 0 else 255))
 //            point((i % SCREEN_WIDTH).toFloat(), (i / SCREEN_HEIGHT).toFloat())
-            pixels[i] = color(if (world[i].toInt() == -1) 0 else 255)
+            if (world[i].toInt() == -1) {
+                pixels[i] = color(0)
+            } else {
+                pixels[i] = color((world[i].toInt()) * 255f / 130000.toFloat())
+            }
+
         }
 
         updatePixels()

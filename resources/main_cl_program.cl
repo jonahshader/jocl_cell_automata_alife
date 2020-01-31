@@ -38,16 +38,16 @@ movementKernel(global int* worldSize, global int* writingToA,
     readWorld = worldA;
   }
 
-  // shitter test
-  // writeWorld[posToIndexWrapped(creatureX[creatureIndex] + 15, creatureY[creatureIndex], worldSize)] = -2;
-  // writeWorld[creatureIndex] = -2;
+  int cx = creatureX[creatureIndex];
+  int cy = creatureY[creatureIndex];
+  int newX = cx;
+  int newY = cy;
 
   // if creature is attempting to move,
   if (moveX[creatureIndex] != 0 || moveY[creatureIndex] != 0)
   {
     // check position if there is a creature there already
-    int cx = creatureX[creatureIndex];
-    int cy = creatureY[creatureIndex];
+
     int moveToX = wrap(cx + moveX[creatureIndex], worldSize[0]);
     int moveToY = wrap(cy + moveY[creatureIndex], worldSize[1]);
 
@@ -63,30 +63,19 @@ movementKernel(global int* worldSize, global int* writingToA,
       if (numMovingHere == 1)
       {
         // we can move successfully because we are the only one trying to go there
-        lastMoveSuccess[creatureIndex] = true;
-        // update location in world
-        writeWorld[posToIndexWrapped(moveToX, moveToY, worldSize)] = creatureIndex;
-        // update position
-        creatureX[creatureIndex] = moveToX;
-        creatureY[creatureIndex] = moveToY;
+        // lastMoveSuccess[creatureIndex] = true;
+        newX = moveToX;
+        newY = moveToY;
       }
-      else
-      {
-        // we cannot move successfully, conflict present
-        lastMoveSuccess[creatureIndex] = false;
-        // set location in world to the current position because we could not move
-        writeWorld[posToIndexWrapped(cx, cy, worldSize)] = creatureIndex;
-      }
-    }
-    else
-    {
-      // we cannot move successfully, trying to move where a creature is
-      lastMoveSuccess[creatureIndex] = false;
-      // set location in world to the current position because we could not move
-      writeWorld[posToIndexWrapped(cx, cy, worldSize)] = creatureIndex;
     }
   }
+  writeWorld[posToIndexWrapped(newX, newY, worldSize)] = creatureIndex;
+  // update position
+  creatureX[creatureIndex] = newX;
+  creatureY[creatureIndex] = newY;
 }
+
+
 
 // this kernel is called directly after movementKernel.
 // it removes creatures from the readWorld
