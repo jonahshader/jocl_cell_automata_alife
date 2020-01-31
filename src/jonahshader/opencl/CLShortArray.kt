@@ -8,7 +8,7 @@ class CLShortArray(val array: ShortArray, context: cl_context, private val comma
     private val deviceMemPointer: Pointer
 
     init {
-        memory = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE or CL.CL_MEM_COPY_HOST_PTR,
+        memory = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
                 Sizeof.cl_short * array.size.toLong(), hostMemPointer, null)
         deviceMemPointer = Pointer.to(memory)
     }

@@ -89,13 +89,13 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
                 val x = (Math.random() * worldWidth).toInt()
                 val y = (Math.random() * worldHeight).toInt()
 
-                if (worldA.array[x + y * worldWidth].toInt() == -1) {
+                if (worldB.array[x + y * worldWidth].toInt() == -1) {
                     creatureX.array[i] = x
                     creatureY.array[i] = y
                     pCreatureX.array[i] = x
                     pCreatureY.array[i] = y
-                    worldA.array[x + y * worldWidth] = i.toShort()
-//                    worldB.array[x + y * worldWidth] = i.toShort()
+//                    worldA.array[x + y * worldWidth] = i.toShort()
+                    worldB.array[x + y * worldWidth] = i.toShort()
                     findingSpotForCreature = false
                 }
             }
@@ -104,7 +104,9 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
     fun run() {
         clp.executeKernel("movementKernel", numCreatures.toLong())
+        clp.waitForCL()
         clp.executeKernel("movementCleanupKernel", numCreatures.toLong())
+        clp.waitForCL()
 
         if (writingToA.array[0] == 0)
             writingToA.array[0] = 1
@@ -113,6 +115,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
         writingToA.copyToDevice()
         localViewUpdated = false
+        clp.waitForCL()
     }
 
     fun getUpdatedWorld() : ShortArray {
@@ -121,6 +124,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
                 worldA.copyFromDevice()
             else
                 worldB.copyFromDevice()
+            clp.waitForCL()
             localViewUpdated = true
         }
 

@@ -8,7 +8,7 @@ class CLIntArray(val array: IntArray, context: cl_context, private val commandQu
     private val deviceMemPointer: Pointer
 
     init {
-        memory = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE or CL.CL_MEM_COPY_HOST_PTR,
+        memory = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
                 Sizeof.cl_int * array.size.toLong(), hostMemPointer, null)
         deviceMemPointer = Pointer.to(memory)
     }

@@ -23,8 +23,6 @@ movementKernel(global int* worldSize, global int* writingToA,
   pCreatureX[creatureIndex] = creatureX[creatureIndex];
   pCreatureY[creatureIndex] = creatureY[creatureIndex];
 
-
-
   /* figure out which world is being written to
      and which one is being read from */
   global short* readWorld;
@@ -142,7 +140,7 @@ inline int indexToY(int index, global int* worldSize)
 
 inline int posToIndexWrapped(int x, int y, global int* worldSize)
 {
-  return wrap(x, worldSize[0]) + (wrap(y, worldSize[1]) * worldSize[0]);
+  return wrap(x, worldSize[0]) + ((wrap(y, worldSize[1]) * worldSize[0]));
 }
 
 inline bool isCreature(int x, int y, global int* worldSize, global short* readWorld)
@@ -185,9 +183,12 @@ inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int*
     int xDestWrapped = wrap(xDest, worldSize[0]);
     int yDestWrapped = wrap(yDest, worldSize[1]);
 
-    return (creatureXDest == xDestWrapped && creatureYDest == yDestWrapped);
+    return ((creatureXDest == xDestWrapped) && (creatureYDest == yDestWrapped));
   }
-  return false;
+  else
+  {
+    return false;
+  }
 }
 
 inline int getCell(int x, int y, global int* worldSize, global short* readWorld)

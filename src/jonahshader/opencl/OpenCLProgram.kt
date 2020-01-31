@@ -47,6 +47,10 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
                 null, 0, null, null)
     }
 
+    fun waitForCL() {
+        CL.clFinish(commandQueue)
+    }
+
     fun createCLIntArray(size: Int) : CLIntArray = CLIntArray(IntArray(size), context, commandQueue)
 
     fun createCLCharArray(size: Int) : CLCharArray = CLCharArray(CharArray(size), context, commandQueue)

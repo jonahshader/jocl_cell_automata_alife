@@ -17,7 +17,7 @@ class App : PApplet() {
     private var noDrawKeyPressed = false
     private var noDraw = false
 
-    private val sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, 100000, "main_cl_program.cl")
+    private val sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, 130000, "main_cl_program.cl")
 
     override fun settings() {
         size(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -25,7 +25,7 @@ class App : PApplet() {
     }
 
     override fun setup() {
-        frameRate(165f)
+        frameRate(5f)
     }
 
     override fun draw() {
