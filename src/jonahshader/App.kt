@@ -9,15 +9,15 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 1920
         const val SCREEN_HEIGHT = 1080
 
-        const val WORLD_WIDTH = 1920
-        const val WORLD_HEIGHT = 1080
+        const val WORLD_WIDTH = 8192
+        const val WORLD_HEIGHT = 8192
     }
 
     private val noDrawToggleKey = 'o'
     private var noDrawKeyPressed = false
     private var noDraw = false
 
-    private val sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, 130000, "main_cl_program.cl")
+    private val sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, 2073600/40, "main_cl_program.cl")
 
     override fun settings() {
         size(SCREEN_WIDTH, SCREEN_HEIGHT)
@@ -25,7 +25,7 @@ class App : PApplet() {
     }
 
     override fun setup() {
-        frameRate(5f)
+        frameRate(60f)
     }
 
     override fun draw() {
@@ -40,16 +40,22 @@ class App : PApplet() {
 
         loadPixels()
         val world = sim.getUpdatedWorld()
-        for (i in 0 until SCREEN_WIDTH * SCREEN_HEIGHT) {
-//            stroke(color(if (world[i].toInt() == 0) 0 else 255))
-//            point((i % SCREEN_WIDTH).toFloat(), (i / SCREEN_HEIGHT).toFloat())
-            if (world[i].toInt() == -1) {
-                pixels[i] = color(0)
-            } else {
-                pixels[i] = color((world[i].toInt()) * 255f / 130000.toFloat())
-            }
 
+        for (y in 0 until SCREEN_HEIGHT) {
+            for (x in 0 until SCREEN_WIDTH) {
+                pixels[x + y * SCREEN_WIDTH] = color(if (world[x + y * WORLD_WIDTH] == -1) 0 else 255)
+            }
         }
+//        for (i in 0 until SCREEN_WIDTH * SCREEN_HEIGHT) {
+////            if (world[i] == -1) {
+////                pixels[i] = color(0)
+////            } else {
+////                pixels[i] = color((world[i].toInt()) * 255f / 130000.toFloat())
+////            }
+//
+//            pixels[i] = color(if (world[i] == -1) 0 else 255)
+//
+//        }
 
         updatePixels()
 
@@ -59,29 +65,18 @@ class App : PApplet() {
 
     }
 
-    override fun keyPressed() {
-//        when (key.toLowerCase()) {
-//            noDrawToggleKey -> {
-//                noDrawKeyPressed = true
-//                noDraw = !noDraw
-//            }
-//        }
-    }
-
     override fun keyPressed(event: KeyEvent?) {
         when (event?.key?.toLowerCase()) {
             noDrawToggleKey -> {
                 noDrawKeyPressed = true
                 noDraw = !noDraw
-                println("fuck")
             }
         }
     }
 
     override fun keyReleased() {
         when (key.toLowerCase()) {
-            noDrawToggleKey -> {noDrawKeyPressed = false
-            println("fuck")}
+            noDrawToggleKey -> noDrawKeyPressed = false
         }
     }
 }

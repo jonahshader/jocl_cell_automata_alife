@@ -1,19 +1,19 @@
 int wrap(int value, int range);
-int indexToX(int index, global int* worldSize);
-int indexToY(int index, global int* worldSize);
+// int indexToX(int index, global int* worldSize);
+// int indexToY(int index, global int* worldSize);
 int posToIndexWrapped(int x, int y, global int* worldSize);
-bool isCreature(int x, int y, global int* worldSize, global short* readWorld);
-int numCreaturesMovingHere(int x, int y, global int* worldSize, global short* readWorld,
+bool isCreature(int x, int y, global int* worldSize, global int* readWorld);
+int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld,
   global short* moveX, global short* moveY);
 bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize,
-  global short* readWorld, global short* moveX, global short* moveY);
-int getCell(int x, int y, global int* worldSize, global short* readWorld);
+  global int* readWorld, global short* moveX, global short* moveY);
+int getCell(int x, int y, global int* worldSize, global int* readWorld);
 
 
 // this kernel runs per creature
 kernel void
 movementKernel(global int* worldSize, global int* writingToA,
-  global short* worldA, global short* worldB,
+  global int* worldA, global int* worldB,
   global short* moveX, global short* moveY, global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
   global short* lastMoveSuccess)
@@ -25,8 +25,8 @@ movementKernel(global int* worldSize, global int* writingToA,
 
   /* figure out which world is being written to
      and which one is being read from */
-  global short* readWorld;
-  global short* writeWorld;
+  global int* readWorld;
+  global int* writeWorld;
   if (writingToA[0] == 1)
   {
     writeWorld = worldA;
@@ -81,15 +81,15 @@ movementKernel(global int* worldSize, global int* writingToA,
 // it removes creatures from the readWorld
 kernel void
 movementCleanupKernel(global int* worldSize, global int* writingToA,
-  global short* worldA, global short* worldB,
+  global int* worldA, global int* worldB,
   global int* pCreatureX, global int* pCreatureY)
 {
   int creatureIndex = get_global_id(0);
 
   /* figure out which world is being written to
      and which one is being read from */
-  global short* readWorld;
-  global short* writeWorld;
+  global int* readWorld;
+  global int* writeWorld;
 
   if (writingToA[0] == 1)
   {
@@ -117,28 +117,28 @@ inline int wrap(int value, int range)
   return out;
 }
 
-inline int indexToX(int index, global int* worldSize)
-{
-  return index % worldSize[0];
-}
-
-inline int indexToY(int index, global int* worldSize)
-{
-  return index / worldSize[0];
-}
+// inline int indexToX(int index, global int* worldSize)
+// {
+//   return index % worldSize[0];
+// }
+//
+// inline int indexToY(int index, global int* worldSize)
+// {
+//   return index / worldSize[0];
+// }
 
 inline int posToIndexWrapped(int x, int y, global int* worldSize)
 {
   return wrap(x, worldSize[0]) + ((wrap(y, worldSize[1]) * worldSize[0]));
 }
 
-inline bool isCreature(int x, int y, global int* worldSize, global short* readWorld)
+inline bool isCreature(int x, int y, global int* worldSize, global int* readWorld)
 {
   return readWorld[posToIndexWrapped(x, y, worldSize)] >= 0;
 }
 
 // assuming x y already wrapped
-inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global short* readWorld, global short* moveX, global short* moveY)
+inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld, global short* moveX, global short* moveY)
 {
   int num = 0;
   //check top
@@ -162,7 +162,7 @@ inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global sh
 }
 
 // todo: optimize out unnessesary wrapping
-inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize, global short* readWorld, global short* moveX, global short* moveY)
+inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize, global int* readWorld, global short* moveX, global short* moveY)
 {
   int cell = getCell(xCell, yCell, worldSize, readWorld);
   if (cell >= 0)
@@ -180,7 +180,7 @@ inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int*
   }
 }
 
-inline int getCell(int x, int y, global int* worldSize, global short* readWorld)
+inline int getCell(int x, int y, global int* worldSize, global int* readWorld)
 {
   return readWorld[posToIndexWrapped(x, y, worldSize)];
 }

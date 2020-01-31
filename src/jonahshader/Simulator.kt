@@ -11,8 +11,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     // define data arrays for opencl kernels
     private val worldSize = clp.createCLIntArray(2)
     private val writingToA = clp.createCLIntArray(1)
-    private val worldA = clp.createCLShortArray(worldWidth * worldHeight)
-    private val worldB = clp.createCLShortArray(worldWidth * worldHeight)
+    private val worldA = clp.createCLIntArray(worldWidth * worldHeight)
+    private val worldB = clp.createCLIntArray(worldWidth * worldHeight)
     private val moveX = clp.createCLShortArray(numCreatures)
     private val moveY = clp.createCLShortArray(numCreatures)
     private val creatureX = clp.createCLIntArray(numCreatures)
@@ -94,7 +94,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
                     creatureY.array[i] = y
                     pCreatureX.array[i] = x
                     pCreatureY.array[i] = y
-                    worldA.array[x + y * worldWidth] = i.toShort()
+                    worldA.array[x + y * worldWidth] = i
 //                    worldB.array[x + y * worldWidth] = i.toShort()
                     findingSpotForCreature = false
                 }
@@ -118,7 +118,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         clp.waitForCL()
     }
 
-    fun getUpdatedWorld() : ShortArray {
+    fun getUpdatedWorld() : IntArray {
         if (!localViewUpdated) {
             if (writingToA.array[0] == 0)
                 worldA.copyFromDevice()
