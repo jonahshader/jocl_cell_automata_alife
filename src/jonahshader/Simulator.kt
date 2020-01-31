@@ -9,19 +9,21 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private var localViewUpdated = false
 
     // define data arrays for opencl kernels
-    val worldSize = clp.createCLIntArray(2)
-    val writingToA = clp.createCLCharArray(1)
-    val worldA = clp.createCLIntArray(worldWidth * worldHeight)
-    val worldB = clp.createCLIntArray(worldWidth * worldHeight)
-    val moveX = clp.createCLCharArray(numCreatures)
-    val moveY = clp.createCLCharArray(numCreatures)
-    val creatureX = clp.createCLIntArray(numCreatures)
-    val creatureY = clp.createCLIntArray(numCreatures)
-    val pCreatureX = clp.createCLIntArray(numCreatures)
-    val pCreatureY = clp.createCLIntArray(numCreatures)
-    val lastMoveSuccess = clp.createCLCharArray(numCreatures)
+    private val worldSize = clp.createCLIntArray(2)
+    private val writingToA = clp.createCLIntArray(1)
+    private val worldA = clp.createCLShortArray(worldWidth * worldHeight)
+    private val worldB = clp.createCLShortArray(worldWidth * worldHeight)
+    private val moveX = clp.createCLShortArray(numCreatures)
+    private val moveY = clp.createCLShortArray(numCreatures)
+    private val creatureX = clp.createCLIntArray(numCreatures)
+    private val creatureY = clp.createCLIntArray(numCreatures)
+    private val pCreatureX = clp.createCLIntArray(numCreatures)
+    private val pCreatureY = clp.createCLIntArray(numCreatures)
+    private val lastMoveSuccess = clp.createCLShortArray(numCreatures)
 
     init {
+        initWorld()
+
         // register data arrays with kernels
         val movementKernel = clp.getKernel("movementKernel")
         var i = 0
@@ -45,9 +47,24 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         worldB.registerAndSendArgument(movementCleanupKernel, i++)
         pCreatureX.registerAndSendArgument(movementCleanupKernel, i++)
         pCreatureY.registerAndSendArgument(movementCleanupKernel, i++)
+
+        worldSize.copyToDevice()
+        writingToA.copyToDevice()
+        worldA.copyToDevice()
+        worldB.copyToDevice()
+        moveX.copyToDevice()
+        moveY.copyToDevice()
+        creatureX.copyToDevice()
+        creatureY.copyToDevice()
+        pCreatureX.copyToDevice()
+        pCreatureY.copyToDevice()
+        lastMoveSuccess.copyToDevice()
     }
 
     private fun initWorld() {
+        worldSize.array[0] = worldWidth
+        worldSize.array[1] = worldHeight
+
         // init worlds to -1
         for (i in 0 until worldWidth * worldHeight) {
             worldA.array[i] = -1
@@ -64,7 +81,24 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             else
                 tempMoveY = if (direction) 1 else -1
 
+            moveX.array[i] = tempMoveX.toShort()
+            moveY.array[i] = tempMoveY.toShort()
 
+            var findingSpotForCreature = true
+            while (findingSpotForCreature) {
+                val x = (Math.random() * worldWidth).toInt()
+                val y = (Math.random() * worldHeight).toInt()
+
+                if (worldA.array[x + y * worldWidth].toInt() == -1) {
+                    creatureX.array[i] = x
+                    creatureY.array[i] = y
+                    pCreatureX.array[i] = x
+                    pCreatureY.array[i] = y
+                    worldA.array[x + y * worldWidth] = i.toShort()
+//                    worldB.array[x + y * worldWidth] = i.toShort()
+                    findingSpotForCreature = false
+                }
+            }
         }
     }
 
@@ -72,25 +106,25 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         clp.executeKernel("movementKernel", numCreatures.toLong())
         clp.executeKernel("movementCleanupKernel", numCreatures.toLong())
 
-        if (writingToA.array[0].toInt() == 0)
-            writingToA.array[0] = 1.toChar()
+        if (writingToA.array[0] == 0)
+            writingToA.array[0] = 1
         else
-            writingToA.array[0] = 0.toChar()
+            writingToA.array[0] = 0
 
         writingToA.copyToDevice()
         localViewUpdated = false
     }
 
-    fun getUpdatedWorld() : IntArray {
+    fun getUpdatedWorld() : ShortArray {
         if (!localViewUpdated) {
-            if (writingToA.array[0].toInt() == 0)
+            if (writingToA.array[0] == 0)
                 worldA.copyFromDevice()
             else
                 worldB.copyFromDevice()
             localViewUpdated = true
         }
 
-        return if (writingToA.array[0].toInt() == 0)
+        return if (writingToA.array[0] == 0)
             worldA.array
         else
             worldB.array

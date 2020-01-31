@@ -51,6 +51,8 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
 
     fun createCLCharArray(size: Int) : CLCharArray = CLCharArray(CharArray(size), context, commandQueue)
 
+    fun createCLShortArray(size: Int) : CLShortArray = CLShortArray(ShortArray(size), context, commandQueue)
+
     // opencl setup stuff
     private fun clInit() {
         CL.setExceptionsEnabled(true)
