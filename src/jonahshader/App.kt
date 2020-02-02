@@ -6,11 +6,11 @@ import processing.event.KeyEvent
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 1280
-        const val SCREEN_HEIGHT = 720
+        const val SCREEN_WIDTH = 1024
+        const val SCREEN_HEIGHT = 1024
 
-        const val WORLD_WIDTH = 8192
-        const val WORLD_HEIGHT = 8192
+        const val WORLD_WIDTH = 8192 / 4
+        const val WORLD_HEIGHT = 8192 / 4
     }
 
     private val noDrawToggleKey = 'o'
@@ -34,12 +34,12 @@ class App : PApplet() {
     }
 
     override fun setup() {
-        frameRate(60f)
+        frameRate(165f/4f)
 
         loadPixels()
         updatePixels()
 
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, 8192 * 128, "main_cl_program.cl")
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (8192 * 1024) / 16, "main_cl_program.cl")
     }
 
     override fun draw() {

@@ -46,6 +46,8 @@ movementKernel(global int* worldSize, global int* writingToA,
   int newX = cx;
   int newY = cy;
 
+  bool moveSuccessful = false;
+
   // if creature is attempting to move,
   if (moveX[creatureIndex] != 0 || moveY[creatureIndex] != 0)
   {
@@ -68,6 +70,7 @@ movementKernel(global int* worldSize, global int* writingToA,
         // lastMoveSuccess[creatureIndex] = true;
         newX = moveToX;
         newY = moveToY;
+        moveSuccessful = true;
       }
     }
   }
@@ -75,6 +78,7 @@ movementKernel(global int* worldSize, global int* writingToA,
   // update position
   creatureX[creatureIndex] = newX;
   creatureY[creatureIndex] = newY;
+  lastMoveSuccess[creatureIndex] = moveSuccessful;
 }
 
 
@@ -120,7 +124,65 @@ renderKernel(global int* worldSize, global int* writingToA,
      and which one is being read from */
   global int* readWorld = writingToA[0] ? worldB : worldA;
 
-  screen[index] = readWorld[posToIndexWrapped(worldX, worldY, worldSize)] == -1 ? BLACK : WHITE;
+  int cell = readWorld[posToIndexWrapped(worldX, worldY, worldSize)];
+  int color = BLACK;
+  if (cell >= 0)
+  {
+    int colorType = cell % 3;
+    if (colorType == 0)
+      color = 0xffffdddd;
+    else if (colorType == 1)
+      color = 0xffddffdd;
+    else
+      color = 0xffddddff;
+  }
+
+  screen[index] = color;
+}
+
+kernel void
+updateCreatureKernel(global int* worldSize, global int* writingToA,
+  global int* worldA, global int* worldB,
+  global short* moveX, global short* moveY, global short* lastMoveSuccess)
+{
+  int creature = get_global_id(0);
+  if (!lastMoveSuccess[creature])
+  {
+    // moveX[creature] = -moveX[creature];
+    // moveY[creature] = -moveY[creature];
+    short mx = moveX[creature];
+    short my = moveY[creature];
+
+    // moveX[creature] = my;
+    // moveY[creature] = mx;
+
+    // if (mx == 1 && my == 0)
+    // {
+    //   mx = 0;
+    //   my = 1;
+    // }
+    // else if (mx == 0 && my == 1)
+    // {
+    //   mx = -1;
+    //   my = 0;
+    // }
+    // else if (mx == -1 && my == 0)
+    // {
+    //   mx = 0;
+    //   my = -1;
+    // }
+    // else
+    // {
+    //   mx = 1;
+    //   my = 0;
+    // }
+
+    mx = -mx;
+    my = -my;
+
+    moveX[creature] = mx;
+    moveY[creature] = my;
+  }
 }
 
 inline int wrap(int value, int range)
@@ -129,16 +191,6 @@ inline int wrap(int value, int range)
   if (out < 0) out += range;
   return out;
 }
-
-// inline int indexToX(int index, global int* worldSize)
-// {
-//   return index % worldSize[0];
-// }
-//
-// inline int indexToY(int index, global int* worldSize)
-// {
-//   return index / worldSize[0];
-// }
 
 inline int posToIndexWrapped(int x, int y, global int* worldSize)
 {

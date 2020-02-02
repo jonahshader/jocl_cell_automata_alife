@@ -5,7 +5,7 @@ import jonahshader.opencl.OpenCLProgram
 import processing.core.PApplet
 
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String) {
-    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel", "renderKernel"))
+    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel", "renderKernel", "updateCreatureKernel"))
 
     private var localViewUpdated = false
 
@@ -60,6 +60,16 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screenSizeCenterScale.registerAndSendArgument(renderKernel, i++)
         screen.registerAndSendArgument(renderKernel, i++)
 
+        val updateCreatureKernel = clp.getKernel("updateCreatureKernel")
+        i = 0
+        worldSize.registerAndSendArgument(updateCreatureKernel, i++)
+        writingToA.registerAndSendArgument(updateCreatureKernel, i++)
+        worldA.registerAndSendArgument(updateCreatureKernel, i++)
+        worldB.registerAndSendArgument(updateCreatureKernel, i++)
+        moveX.registerAndSendArgument(updateCreatureKernel, i++)
+        moveY.registerAndSendArgument(updateCreatureKernel, i++)
+        lastMoveSuccess.registerAndSendArgument(updateCreatureKernel, i++)
+
         worldSize.copyToDevice()
         writingToA.copyToDevice()
         worldA.copyToDevice()
@@ -104,6 +114,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             moveX.array[i] = tempMoveX.toShort()
             moveY.array[i] = tempMoveY.toShort()
 
+            lastMoveSuccess.array[i] = 1
+
             var findingSpotForCreature = true
             while (findingSpotForCreature) {
                 val x = (Math.random() * worldWidth).toInt()
@@ -122,6 +134,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     }
 
     fun run() {
+        clp.executeKernel("updateCreatureKernel", numCreatures.toLong())
+        clp.waitForCL()
         clp.executeKernel("movementKernel", numCreatures.toLong())
         clp.waitForCL()
         clp.executeKernel("movementCleanupKernel", numCreatures.toLong())
