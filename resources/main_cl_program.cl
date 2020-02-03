@@ -1,7 +1,7 @@
 #define WHITE (0xffffffff)
 #define BLACK (0xff000000)
 
-#define ADD_FOOD_CHANCE 500
+#define ADD_FOOD_CHANCE 50
 
 int wrap(int value, int range);
 // int indexToX(int index, global int* worldSize);
@@ -192,7 +192,7 @@ addFoodKernel(global int* worldSize, global int* writingToA,
 kernel void
 updateCreatureKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
-  global short* moveX, global short* moveY, global short* lastMoveSuccess)
+  global short* moveX, global short* moveY, global short* lastMoveSuccess, global unsigned int* randomNumbers)
 {
   int creature = get_global_id(0);
   if (!lastMoveSuccess[creature])
@@ -226,8 +226,30 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     //   my = 0;
     // }
 
-    mx = -mx;
-    my = -my;
+    // mx = -mx;
+    // my = -my;
+
+    unsigned int ranNum = getNextRandom(creature, randomNumbers) % 4;
+
+    mx = 0;
+    my = 0;
+
+    if (ranNum == 0)
+    {
+      mx = 1;
+    }
+    else if (ranNum == 1)
+    {
+      my = 1;
+    }
+    else if (ranNum == 2)
+    {
+      mx = -1;
+    }
+    else
+    {
+      my = -1;
+    }
 
     moveX[creature] = mx;
     moveY[creature] = my;

@@ -78,6 +78,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         moveX.registerAndSendArgument(updateCreatureKernel, i++)
         moveY.registerAndSendArgument(updateCreatureKernel, i++)
         lastMoveSuccess.registerAndSendArgument(updateCreatureKernel, i++)
+        randomNumbers.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
