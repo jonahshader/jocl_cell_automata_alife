@@ -4,14 +4,15 @@ import processing.core.PApplet
 import processing.core.PConstants
 import processing.event.KeyEvent
 import kotlin.math.pow
+import kotlin.math.tanh
 
 class App : PApplet() {
     companion object {
         const val SCREEN_WIDTH = 800
         const val SCREEN_HEIGHT = 600
 
-        const val WORLD_WIDTH = 8192 / 4
-        const val WORLD_HEIGHT = 8192 / 4
+        const val WORLD_WIDTH = 8192
+        const val WORLD_HEIGHT = 8192
     }
 
     private val noDrawToggleKey = 'o'
@@ -42,7 +43,7 @@ class App : PApplet() {
         loadPixels()
         updatePixels()
 
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (8192 * 1024) / 16, "main_cl_program.cl")
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (WORLD_WIDTH * WORLD_HEIGHT) / 4, "main_cl_program.cl")
     }
 
     override fun draw() {
@@ -69,12 +70,16 @@ class App : PApplet() {
             var progress = (frameCount % framesPerIteration) / framesPerIteration.toFloat()
 //            progress = min(progress, 1f).pow(0.25f)
 //            progress = sin(progress * PI / 2f)
+//            progress = sqrt(1 - (1-progress).pow(2))
+//            progress = tanh(progress * 10) / tanh(10f)
+//            progress *= 5f
+//            progress = (1f - cos(PI*progress))/2f
             sim.render(xCam, yCam, zoom, progress)
         }
 
         updatePixels()
         textAlign(LEFT, TOP)
-        text("FPS: $frameRate", 0f, 0f)
+        text("IPF: $iterationsPerFrame, FPS: $frameRate", 0f, 0f)
     }
 
     override fun keyPressed(event: KeyEvent?) {

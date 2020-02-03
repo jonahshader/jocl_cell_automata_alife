@@ -1,6 +1,8 @@
 #define WHITE (0xffffffff)
 #define BLACK (0xff000000)
 
+#define ADD_FOOD_CHANCE 500
+
 int wrap(int value, int range);
 // int indexToX(int index, global int* worldSize);
 // int indexToY(int index, global int* worldSize);
@@ -13,6 +15,7 @@ bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldS
 int getCell(int x, int y, global int* worldSize, global int* readWorld);
 int roundEven(float number);
 float interpolate(float a, float b, float progress);
+unsigned int getNextRandom(int index, global unsigned int* randomNumbers);
 
 
 // this kernel runs per creature
@@ -60,7 +63,7 @@ movementKernel(global int* worldSize, global int* writingToA,
     int cellAtPos = readWorld[moveToX + moveToY * worldSize[0]];
 
     // if there is not a creature at the desired spot,
-    if (cellAtPos < 0)
+    if (cellAtPos == -1)
     {
       // check 3 neighbors to see if anyone else is trying to go there
       // if not, go there, set lastMoveSuccess to true
@@ -154,14 +157,36 @@ renderKernel(global int* worldSize, global int* writingToA,
     {
       int colorType = cell % 3;
       if (colorType == 0)
-        color = 0xffffdddd;
+        color = 0xffffbbbb;
       else if (colorType == 1)
-        color = 0xffddffdd;
+        color = 0xffbbffbb;
       else
-        color = 0xffddddff;
+        color = 0xffbbbbff;
     }
   }
+  else if (cell == -2)
+  {
+    color = 0xffccffcc;
+  }
   screen[index] = color;
+}
+
+// runs per cell
+kernel void
+addFoodKernel(global int* worldSize, global int* writingToA,
+  global int* worldA, global int* worldB,
+  global unsigned int* randomNumbers)
+{
+  int index = get_global_id(0);
+
+  if (worldA[index] == -1 && worldB[index] == -1)
+  {
+    if ((getNextRandom(index, randomNumbers) % ADD_FOOD_CHANCE) == 0)
+    {
+      worldA[index] = -2;
+      worldB[index] = -2;
+    }
+  }
 }
 
 kernel void
@@ -281,4 +306,14 @@ inline int roundEven(float number) {
 inline float interpolate(float a, float b, float progress)
 {
   return ((1-progress) * a) + (progress * b);
+}
+
+inline unsigned int getNextRandom(int index, global unsigned int* randomNumbers)
+{
+  unsigned int x = randomNumbers[index];
+  x ^= x << 13;
+  x ^= x >> 7;
+  x ^= x << 17;
+  randomNumbers[index] = x;
+  return x;
 }
