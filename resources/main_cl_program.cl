@@ -149,7 +149,7 @@ renderKernel(global int* worldSize, global int* writingToA,
     float dx = cx - worldXF;
     float dy = cy - worldYF;
     float dist = sqrt(dx * dx + dy * dy);
-    if (dist < 0.5f)
+    if (dist <= 0.5f)
     // if (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax)
     {
       int colorType = cell % 3;

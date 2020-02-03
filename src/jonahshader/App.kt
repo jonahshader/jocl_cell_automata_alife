@@ -7,8 +7,8 @@ import kotlin.math.pow
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 1024
-        const val SCREEN_HEIGHT = 1024
+        const val SCREEN_WIDTH = 800
+        const val SCREEN_HEIGHT = 600
 
         const val WORLD_WIDTH = 8192 / 4
         const val WORLD_HEIGHT = 8192 / 4
@@ -23,11 +23,11 @@ class App : PApplet() {
     private var upPressed = false
     private var downPressed = false
 
-    private var zoom = 1f
-    private var xCam = 0f
-    private var yCam = 0f
+    private var zoom = 8f
+    private var xCam = WORLD_WIDTH / 2f
+    private var yCam = WORLD_HEIGHT / 2f
 
-    private var iterationsPerFrame = 0.25f
+    private var iterationsPerFrame = 0.125f
 
     private lateinit var sim: Simulator
 
