@@ -3,6 +3,7 @@ package jonahshader
 import processing.core.PApplet
 import processing.core.PConstants
 import processing.event.KeyEvent
+import kotlin.math.pow
 
 class App : PApplet() {
     companion object {
@@ -61,21 +62,19 @@ class App : PApplet() {
         }
 
 
-
-
         loadPixels()
         if (iterationsPerFrame > 1) {
             sim.render(xCam, yCam, zoom, 1f)
         } else {
-            sim.render(xCam, yCam, zoom, (frameCount % framesPerIteration) / framesPerIteration.toFloat())
+            var progress = (frameCount % framesPerIteration) / framesPerIteration.toFloat()
+//            progress = min(progress, 1f).pow(0.25f)
+//            progress = sin(progress * PI / 2f)
+            sim.render(xCam, yCam, zoom, progress)
         }
 
         updatePixels()
-
         textAlign(LEFT, TOP)
         text("FPS: $frameRate", 0f, 0f)
-
-
     }
 
     override fun keyPressed(event: KeyEvent?) {
