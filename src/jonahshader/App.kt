@@ -26,6 +26,8 @@ class App : PApplet() {
     private var xCam = 0f
     private var yCam = 0f
 
+    private var iterationsPerFrame = 0.25f
+
     private lateinit var sim: Simulator
 
     override fun settings() {
@@ -34,7 +36,7 @@ class App : PApplet() {
     }
 
     override fun setup() {
-        frameRate(165f/4f)
+        frameRate(60f)
 
         loadPixels()
         updatePixels()
@@ -43,27 +45,31 @@ class App : PApplet() {
     }
 
     override fun draw() {
-//        if (noDraw)
-//            for (i in 0 until 1000)
-//                sim.run()
-//        else {
-//            sim.run()
-//            if (upPressed) yCam -= max(8/zoom, 1f)
-//            if (downPressed) yCam += max(8/zoom, 1f)
-//            if (leftPressed) xCam -= max(8/zoom, 1f)
-//            if (rightPressed) xCam += max(8/zoom, 1f)
-            if (upPressed) yCam -= 8/zoom
-            if (downPressed) yCam += 8/zoom
-            if (leftPressed) xCam -= 8/zoom
-            if (rightPressed) xCam += 8/zoom
-//        }
+        if (upPressed) yCam -= 8/zoom
+        if (downPressed) yCam += 8/zoom
+        if (leftPressed) xCam -= 8/zoom
+        if (rightPressed) xCam += 8/zoom
 
-        if (frameCount % 10 == 0)
-            sim.run()
+        val framesPerIteration = (1 / iterationsPerFrame).toInt()
+
+        if (iterationsPerFrame > 1) {
+            for (i in 0 until iterationsPerFrame.toInt())
+                sim.run()
+        } else {
+            if (frameCount % framesPerIteration == 0)
+                sim.run()
+        }
+
+
 
 
         loadPixels()
-        sim.render(xCam, yCam, zoom, (frameCount % 10) / 10f)
+        if (iterationsPerFrame > 1) {
+            sim.render(xCam, yCam, zoom, 1f)
+        } else {
+            sim.render(xCam, yCam, zoom, (frameCount % framesPerIteration) / framesPerIteration.toFloat())
+        }
+
         updatePixels()
 
         textAlign(LEFT, TOP)
@@ -87,6 +93,8 @@ class App : PApplet() {
                 zoom /= 2f
                 zoom = max(zoom, 1f)
             }
+            ']' -> iterationsPerFrame *= 2f
+            '[' -> iterationsPerFrame *= 0.5f
         }
     }
 
