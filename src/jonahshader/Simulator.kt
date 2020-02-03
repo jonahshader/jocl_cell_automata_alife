@@ -21,7 +21,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val pCreatureX = clp.createCLIntArray(numCreatures)
     private val pCreatureY = clp.createCLIntArray(numCreatures)
     private val lastMoveSuccess = clp.createCLShortArray(numCreatures)
-    private val screenSizeCenterScale = clp.createCLIntArray(5)
+    private val screenSizeCenterScale = clp.createCLFloatArray(6)
     private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
 
     init {
@@ -57,6 +57,10 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         writingToA.registerAndSendArgument(renderKernel, i++)
         worldA.registerAndSendArgument(renderKernel, i++)
         worldB.registerAndSendArgument(renderKernel, i++)
+        creatureX.registerAndSendArgument(renderKernel, i++)
+        creatureY.registerAndSendArgument(renderKernel, i++)
+        pCreatureX.registerAndSendArgument(renderKernel, i++)
+        pCreatureY.registerAndSendArgument(renderKernel, i++)
         screenSizeCenterScale.registerAndSendArgument(renderKernel, i++)
         screen.registerAndSendArgument(renderKernel, i++)
 
@@ -89,11 +93,12 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         worldSize.array[0] = worldWidth
         worldSize.array[1] = worldHeight
 
-        screenSizeCenterScale.array[0] = graphics.width
-        screenSizeCenterScale.array[1] = graphics.height
-        screenSizeCenterScale.array[2] = 0
-        screenSizeCenterScale.array[3] = 1
-        screenSizeCenterScale.array[4] = 1
+        screenSizeCenterScale.array[0] = graphics.width.toFloat()
+        screenSizeCenterScale.array[1] = graphics.height.toFloat()
+        screenSizeCenterScale.array[2] = 0f
+        screenSizeCenterScale.array[3] = 1f
+        screenSizeCenterScale.array[4] = 1f
+        screenSizeCenterScale.array[5] = 0f
 
         // init worlds to -1
         for (i in 0 until worldWidth * worldHeight) {
@@ -127,6 +132,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
                     pCreatureX.array[i] = x
                     pCreatureY.array[i] = y
                     worldA.array[x + y * worldWidth] = i
+                    worldB.array[x + y * worldWidth] = i
                     findingSpotForCreature = false
                 }
             }
@@ -134,10 +140,6 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     }
 
     fun run() {
-        clp.executeKernel("updateCreatureKernel", numCreatures.toLong())
-        clp.waitForCL()
-        clp.executeKernel("movementKernel", numCreatures.toLong())
-        clp.waitForCL()
         clp.executeKernel("movementCleanupKernel", numCreatures.toLong())
         clp.waitForCL()
 
@@ -147,15 +149,21 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             writingToA.array[0] = 0
 
         writingToA.copyToDevice()
-        localViewUpdated = false
         clp.waitForCL()
+        clp.executeKernel("updateCreatureKernel", numCreatures.toLong())
+        clp.waitForCL()
+        clp.executeKernel("movementKernel", numCreatures.toLong())
+        clp.waitForCL()
+
+        localViewUpdated = false
     }
 
-    fun render(xCenter: Int, yCenter: Int, zoom: Int) {
+    fun render(xCenter: Float, yCenter: Float, zoom: Float, progress: Float) {
         assert(zoom >= 1)
         screenSizeCenterScale.array[2] = xCenter
         screenSizeCenterScale.array[3] = yCenter
         screenSizeCenterScale.array[4] = zoom
+        screenSizeCenterScale.array[5] = progress
         screenSizeCenterScale.copyToDevice()
         clp.executeKernel("renderKernel", (graphics.width * graphics.height).toLong())
         clp.waitForCL()

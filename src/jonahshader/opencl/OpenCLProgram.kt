@@ -57,6 +57,8 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
 
     fun createCLShortArray(size: Int) : CLShortArray = CLShortArray(ShortArray(size), context, commandQueue)
 
+    fun createCLFloatArray(size: Int) : CLFloatArray = CLFloatArray(FloatArray(size), context, commandQueue)
+
     // opencl setup stuff
     private fun clInit() {
         CL.setExceptionsEnabled(true)
@@ -102,7 +104,4 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
         // Build the program
         CL.clBuildProgram(program, 0, null, null, null, null)
     }
-
-
-
 }

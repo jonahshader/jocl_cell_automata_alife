@@ -11,6 +11,8 @@ int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* read
 bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize,
   global int* readWorld, global short* moveX, global short* moveY);
 int getCell(int x, int y, global int* worldSize, global int* readWorld);
+int roundEven(float number);
+float interpolate(float a, float b, float progress);
 
 
 // this kernel runs per creature
@@ -104,39 +106,57 @@ movementCleanupKernel(global int* worldSize, global int* writingToA,
   readWorld[cx + cy * worldSize[0]] = -1;
 }
 
-// screenSizeCenterScale is an int array of size 5. width, height, xCenter, yCenter, pixelsPerCell
+// screenSizeCenterScale is an int array of size 5. width, height, xCenter, yCenter, pixelsPerCell, progress (0 to 1)
 kernel void
 renderKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
-  global int* screenSizeCenterScale, global int* screen)
+  global int* creatureX, global int* creatureY,
+  global int* pCreatureX, global int* pCreatureY,
+  global float* screenSizeCenterScale, global int* screen)
 {
   int index = get_global_id(0);
-  int screenX = index % screenSizeCenterScale[0];
-  int screenY = index / screenSizeCenterScale[0];
+  int screenX = index % ((int)screenSizeCenterScale[0]);
+  int screenY = index / ((int)screenSizeCenterScale[0]);
 
   float screenXCentered = screenX - (screenSizeCenterScale[0] / 2.0f);
   float screenYCentered = screenY - (screenSizeCenterScale[1] / 2.0f);
 
-  int worldX = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
-  int worldY = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
+  float worldXF = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
+  float worldYF = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
+
+  // int worldX = floor(worldXF);
+  // int worldY = floor(worldYF);
+  int worldX = worldXF + 0.5f;
+  int worldY = worldYF + 0.5f;
 
   /* figure out which world is being written to
      and which one is being read from */
   global int* readWorld = writingToA[0] ? worldB : worldA;
+  global int* writeWorld = writingToA[0] ? worldA : worldB;
 
   int cell = readWorld[posToIndexWrapped(worldX, worldY, worldSize)];
+  if (cell < 0) cell = writeWorld[posToIndexWrapped(worldX, worldY, worldSize)];
+
   int color = BLACK;
   if (cell >= 0)
   {
-    int colorType = cell % 3;
-    if (colorType == 0)
-      color = 0xffffdddd;
-    else if (colorType == 1)
-      color = 0xffddffdd;
-    else
-      color = 0xffddddff;
+    float cx = interpolate(pCreatureX[cell], creatureX[cell], screenSizeCenterScale[5]);
+    float cy = interpolate(pCreatureY[cell], creatureY[cell], screenSizeCenterScale[5]);
+    float xMin = cx - 0.5f;
+    float xMax = cx + 0.5f;
+    float yMin = cy - 0.5f;
+    float yMax = cy + 0.5f;
+    if (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax)
+    {
+      int colorType = cell % 3;
+      if (colorType == 0)
+        color = 0xffffdddd;
+      else if (colorType == 1)
+        color = 0xffddffdd;
+      else
+        color = 0xffddddff;
+    }
   }
-
   screen[index] = color;
 }
 
@@ -246,4 +266,15 @@ inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int*
 inline int getCell(int x, int y, global int* worldSize, global int* readWorld)
 {
   return readWorld[posToIndexWrapped(x, y, worldSize)];
+}
+
+inline int roundEven(float number) {
+   int sign = (int)((number > 0) - (number < 0));
+   int odd = ((int)number % 2); // odd -> 1, even -> 0
+   return ((int)(number-sign*(0.5f-odd)));
+}
+
+inline float interpolate(float a, float b, float progress)
+{
+  return ((1-progress) * a) + (progress * b);
 }

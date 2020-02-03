@@ -22,9 +22,9 @@ class App : PApplet() {
     private var upPressed = false
     private var downPressed = false
 
-    private var zoom = 1
-    private var xCam = 0
-    private var yCam = 0
+    private var zoom = 1f
+    private var xCam = 0f
+    private var yCam = 0f
 
     private lateinit var sim: Simulator
 
@@ -43,19 +43,27 @@ class App : PApplet() {
     }
 
     override fun draw() {
-        if (noDraw)
-            for (i in 0 until 1000)
-                sim.run()
-        else {
+//        if (noDraw)
+//            for (i in 0 until 1000)
+//                sim.run()
+//        else {
+//            sim.run()
+//            if (upPressed) yCam -= max(8/zoom, 1f)
+//            if (downPressed) yCam += max(8/zoom, 1f)
+//            if (leftPressed) xCam -= max(8/zoom, 1f)
+//            if (rightPressed) xCam += max(8/zoom, 1f)
+            if (upPressed) yCam -= 8/zoom
+            if (downPressed) yCam += 8/zoom
+            if (leftPressed) xCam -= 8/zoom
+            if (rightPressed) xCam += 8/zoom
+//        }
+
+        if (frameCount % 10 == 0)
             sim.run()
-            if (upPressed) yCam -= max(8/zoom, 1)
-            if (downPressed) yCam += max(8/zoom, 1)
-            if (leftPressed) xCam -= max(8/zoom, 1)
-            if (rightPressed) xCam += max(8/zoom, 1)
-        }
+
 
         loadPixels()
-        sim.render(xCam, yCam, zoom)
+        sim.render(xCam, yCam, zoom, (frameCount % 10) / 10f)
         updatePixels()
 
         textAlign(LEFT, TOP)
@@ -74,10 +82,10 @@ class App : PApplet() {
             'a' -> leftPressed = true
             's' -> downPressed = true
             'd' -> rightPressed = true
-            'e' -> zoom *= 2
+            'e' -> zoom *= 2f
             'q' -> {
-                zoom /= 2
-                zoom = max(zoom, 1)
+                zoom /= 2f
+                zoom = max(zoom, 1f)
             }
         }
     }
