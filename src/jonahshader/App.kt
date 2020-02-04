@@ -1,7 +1,6 @@
 package jonahshader
 
 import processing.core.PApplet
-import processing.core.PConstants
 import processing.event.KeyEvent
 import kotlin.math.pow
 import kotlin.math.tanh
@@ -43,7 +42,7 @@ class App : PApplet() {
         loadPixels()
         updatePixels()
 
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (WORLD_WIDTH * WORLD_HEIGHT) / 8, "main_cl_program.cl")
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (WORLD_WIDTH * WORLD_HEIGHT) / 4, "main_cl_program.cl")
     }
 
     override fun draw() {

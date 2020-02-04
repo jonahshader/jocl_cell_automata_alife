@@ -171,7 +171,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         clp.executeKernel("movementKernel", numCreatures.toLong())
         clp.waitForCL()
         if (currentTick % 32 == 0L) {
-            clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
+//            clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
         }
 
         localViewUpdated = false
