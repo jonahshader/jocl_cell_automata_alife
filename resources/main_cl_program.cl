@@ -16,6 +16,7 @@ int getCell(int x, int y, global int* worldSize, global int* readWorld);
 int roundEven(float number);
 float interpolate(float a, float b, float progress);
 unsigned int getNextRandom(int index, global unsigned int* randomNumbers);
+int numNeighbors(int x, int y, global int* readWorld, global int* worldSize);
 
 
 // this kernel runs per creature
@@ -115,7 +116,8 @@ renderKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
   global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
-  global float* screenSizeCenterScale, global int* screen)
+  global float* screenSizeCenterScale, global int* screen,
+  global short* moveX, global short* moveY)
 {
   int index = get_global_id(0);
   int screenX = index % ((int)screenSizeCenterScale[0]);
@@ -192,11 +194,18 @@ addFoodKernel(global int* worldSize, global int* writingToA,
 kernel void
 updateCreatureKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
-  global short* moveX, global short* moveY, global short* lastMoveSuccess, global unsigned int* randomNumbers)
+  global short* moveX, global short* moveY,
+  global short* lastMoveSuccess, global unsigned int* randomNumbers,
+  global int* creatureX, global int* creatureY)
 {
   int creature = get_global_id(0);
   if (!lastMoveSuccess[creature])
   {
+    global int* readWorld = writingToA[0] ? worldB : worldA;
+    global int* writeWorld = writingToA[0] ? worldA : worldB;
+    int x = creatureX[creature];
+    int y = creatureY[creature];
+    int neighbors = numNeighbors(x, y, readWorld, worldSize);
     // moveX[creature] = -moveX[creature];
     // moveY[creature] = -moveY[creature];
     short mx = moveX[creature];
@@ -225,31 +234,33 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     //   mx = 1;
     //   my = 0;
     // }
-
-    // mx = -mx;
-    // my = -my;
-
-    unsigned int ranNum = getNextRandom(creature, randomNumbers) % 4;
-
-    mx = 0;
-    my = 0;
-
-    if (ranNum == 0)
+    // unsigned int ranNum = getNextRandom(creature, randomNumbers) % 4;
+    if (neighbors >= 3)
     {
-      mx = 1;
+
+      unsigned int ranNum = (neighbors) % 4;
+
+      mx = 0;
+      my = 0;
+
+      if (ranNum == 0)
+      {
+        mx = 1;
+      }
+      else if (ranNum == 1)
+      {
+        my = 1;
+      }
+      else if (ranNum == 2)
+      {
+        mx = -1;
+      }
+      else
+      {
+        my = -1;
+      }
     }
-    else if (ranNum == 1)
-    {
-      my = 1;
-    }
-    else if (ranNum == 2)
-    {
-      mx = -1;
-    }
-    else
-    {
-      my = -1;
-    }
+
 
     moveX[creature] = mx;
     moveY[creature] = my;
@@ -338,4 +349,22 @@ inline unsigned int getNextRandom(int index, global unsigned int* randomNumbers)
   x ^= x << 17;
   randomNumbers[index] = x;
   return x;
+}
+
+inline int numNeighbors(int x, int y, global int* readWorld, global int* worldSize)
+{
+  int neighbors = 0;
+
+  neighbors += readWorld[posToIndexWrapped(x - 1, y - 1, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x - 0, y - 1, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x + 1, y - 1, worldSize)] >= 0 ? 1 : 0;
+
+  neighbors += readWorld[posToIndexWrapped(x - 1, y - 0, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x + 1, y - 0, worldSize)] >= 0 ? 1 : 0;
+
+  neighbors += readWorld[posToIndexWrapped(x - 1, y + 1, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x - 0, y + 1, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x + 1, y + 1, worldSize)] >= 0 ? 1 : 0;
+
+  return neighbors;
 }

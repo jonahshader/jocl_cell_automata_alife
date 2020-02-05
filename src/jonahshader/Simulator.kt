@@ -68,6 +68,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureY.registerAndSendArgument(renderKernel, i++)
         screenSizeCenterScale.registerAndSendArgument(renderKernel, i++)
         screen.registerAndSendArgument(renderKernel, i++)
+        moveX.registerAndSendArgument(renderKernel, i++)
+        moveY.registerAndSendArgument(renderKernel, i++)
 
         val updateCreatureKernel = clp.getKernel("updateCreatureKernel")
         i = 0
@@ -79,6 +81,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         moveY.registerAndSendArgument(updateCreatureKernel, i++)
         lastMoveSuccess.registerAndSendArgument(updateCreatureKernel, i++)
         randomNumbers.registerAndSendArgument(updateCreatureKernel, i++)
+        creatureX.registerAndSendArgument(updateCreatureKernel, i++)
+        creatureY.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
