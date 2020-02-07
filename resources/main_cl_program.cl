@@ -133,10 +133,10 @@ renderKernel(global int* worldSize, global int* writingToA,
   worldXF = fwrap(worldXF, worldSize[0]);
   worldYF = fwrap(worldYF, worldSize[1]);
 
-  // int worldX = floor(worldXF);
-  // int worldY = floor(worldYF);
-  int worldX = wrap(worldXF + .5f, worldSize[0]);
-  int worldY = wrap(worldYF + .5f, worldSize[1]);
+  // int worldX = floor(worldXF + 0.5f);
+  // int worldY = floor(worldYF + 0.5f);
+  int worldX = wrap(floor(worldXF + .5f), worldSize[0]);
+  int worldY = wrap(floor(worldYF + .5f), worldSize[1]);
 
   /* figure out which world is being written to
      and which one is being read from */
