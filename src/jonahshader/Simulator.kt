@@ -28,6 +28,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val screenSizeCenterScale = clp.createCLFloatArray(6)
     private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
     private val randomNumbers = clp.createCLIntArray(worldWidth * worldHeight)
+    private val worldFood = clp.createCLShortArray(worldWidth * worldHeight)
 
     init {
         initWorld()

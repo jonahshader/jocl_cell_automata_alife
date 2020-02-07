@@ -10,8 +10,8 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 800
         const val SCREEN_HEIGHT = 600
 
-        const val WORLD_WIDTH = 8192/4
-        const val WORLD_HEIGHT = 8192/4
+        const val WORLD_WIDTH = 8192/32
+        const val WORLD_HEIGHT = 8192/32
     }
 
     private val noDrawToggleKey = 'o'
@@ -108,7 +108,6 @@ class App : PApplet() {
             'a' -> leftPressed = false
             's' -> downPressed = false
             'd' -> rightPressed = false
-
         }
     }
 }

@@ -17,6 +17,7 @@ int roundEven(float number);
 float interpolate(float a, float b, float progress);
 unsigned int getNextRandom(int index, global unsigned int* randomNumbers);
 int numNeighbors(int x, int y, global int* readWorld, global int* worldSize);
+float fwrap(float value, float range);
 
 
 // this kernel runs per creature
@@ -129,10 +130,13 @@ renderKernel(global int* worldSize, global int* writingToA,
   float worldXF = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
   float worldYF = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
 
+  worldXF = fwrap(worldXF, worldSize[0]);
+  worldYF = fwrap(worldYF, worldSize[1]);
+
   // int worldX = floor(worldXF);
   // int worldY = floor(worldYF);
-  int worldX = worldXF + 0.5f;
-  int worldY = worldYF + 0.5f;
+  int worldX = wrap(worldXF + .5f, worldSize[0]);
+  int worldY = wrap(worldYF + .5f, worldSize[1]);
 
   /* figure out which world is being written to
      and which one is being read from */
@@ -145,14 +149,47 @@ renderKernel(global int* worldSize, global int* writingToA,
   int color = BLACK;
   if (cell >= 0)
   {
-    float cx = interpolate(pCreatureX[cell], creatureX[cell], screenSizeCenterScale[5]);
-    float cy = interpolate(pCreatureY[cell], creatureY[cell], screenSizeCenterScale[5]);
-    float xMin = cx - 0.5f;
-    float xMax = cx + 0.5f;
-    float yMin = cy - 0.5f;
-    float yMax = cy + 0.5f;
-    float dx = cx - worldXF;
-    float dy = cy - worldYF;
+    int pcx = pCreatureX[cell];
+    int pcy = pCreatureY[cell];
+    int cx = creatureX[cell];
+    int cy = creatureY[cell];
+
+    //TODO: does this work?
+    if (abs(pcx - cx) > 1)
+    {
+      if (worldX > (worldSize[0]/2))
+      {
+        if (pcx < cx) pcx += worldSize[0];
+        else          cx  += worldSize[0];
+      }
+      else
+      {
+        if (pcx < cx) cx  -= worldSize[0];
+        else          pcx -= worldSize[0];
+      }
+    }
+    else if (abs(pcy - cy) > 1)
+    {
+      if (worldY > (worldSize[1]/2))
+      {
+        if (pcy < cy) pcy += worldSize[1];
+        else          cy  += worldSize[1];
+      }
+      else
+      {
+        if (pcy < cy) cy  -= worldSize[1];
+        else          pcy -= worldSize[1];
+      }
+    }
+
+    float ix = interpolate(pcx, cx, screenSizeCenterScale[5]);
+    float iy = interpolate(pcy, cy, screenSizeCenterScale[5]);
+    float xMin = ix - 0.5f;
+    float xMax = ix + 0.5f;
+    float yMin = iy - 0.5f;
+    float yMax = iy + 0.5f;
+    float dx = ix - worldXF;
+    float dy = iy - worldYF;
     float dist = sqrt(dx * dx + dy * dy);
     if (dist <= 0.5f)
     // if (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax)
@@ -270,6 +307,13 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
 inline int wrap(int value, int range)
 {
   int out = value % range;
+  if (out < 0) out += range;
+  return out;
+}
+
+inline float fwrap(float value, float range)
+{
+  float out = fmod(value, range);
   if (out < 0) out += range;
   return out;
 }
