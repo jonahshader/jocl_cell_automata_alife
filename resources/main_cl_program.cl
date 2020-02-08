@@ -1,6 +1,9 @@
 #define WHITE (0xffffffff)
 #define BLACK (0xff000000)
 
+// uncomment one option
+// #define ANIMATION_STEPPING_ENABLED
+
 #define ADD_FOOD_CHANCE 50
 
 int wrap(int value, int range);
@@ -183,8 +186,15 @@ renderKernel(global int* worldSize, global int* writingToA,
     }
 
     // interpolate position of creature moving from previous pos to new pos
-    float ix = interpolate(pcx, cx, screenSizeCenterScale[5]);
-    float iy = interpolate(pcy, cy, screenSizeCenterScale[5]);
+    float customProgress;
+    #ifdef ANIMATION_STEPPING_ENABLED
+    customProgress = pow(screenSizeCenterScale[5], 2.0f);
+    #endif // ANIMATION_STEPPING_ENABLED
+    #ifndef ANIMATION_STEPPING_ENABLED
+    customProgress = screenSizeCenterScale[5];
+    #endif // ANIMATION_STEPPING_ENABLED
+    float ix = interpolate(pcx, cx, customProgress);
+    float iy = interpolate(pcy, cy, customProgress);
 
     // square boundaries
     float xMin = ix - 0.5f;
@@ -195,6 +205,7 @@ renderKernel(global int* worldSize, global int* writingToA,
     float dx = ix - worldXF;
     float dy = iy - worldYF;
     float dist = sqrt(dx * dx + dy * dy);
+
     bool renderSquare = (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax) && screenSizeCenterScale[4] < 2.1f;
     int colorType = cell % 3;
 
@@ -212,8 +223,22 @@ renderKernel(global int* worldSize, global int* writingToA,
     }
     else
     {
-      float brightness = max(0.5f - dist, 0.0f) * 2.0f;
+      float brightness;
+      #ifdef ANIMATION_STEPPING_ENABLED
+      float progMult = (pow((0.5f - customProgress) * 2, 2.0f) + 1)/2.0f;
+      if (pcx == cx && pcy == cy) progMult = 1.0f;
+      float maxDist = 1/progMult;
+      float maxDistPow = maxDist * maxDist;
+      float customDist = dist / progMult;
+      brightness = max(0.5f - customDist, 0.0f) * 2.0f;
+      brightness = sqrt(1-pow(brightness - 1, 2.0f)) * progMult;
+      #endif // ANIMATION_STEPPING_ENABLED
+      #ifndef ANIMATION_STEPPING_ENABLED
+      brightness = max(0.5f - dist, 0.0f) * 2.0f;
       brightness = sqrt(1-pow(brightness - 1, 2.0f));
+      #endif // ANIMATION_STEPPING_ENABLED
+
+
       // brightness = pow(brightness, 0.3f);
       red = brightness * 255;
       green = red;
@@ -269,13 +294,8 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     int x = creatureX[creature];
     int y = creatureY[creature];
     int neighbors = numNeighbors(x, y, readWorld, worldSize);
-    // moveX[creature] = -moveX[creature];
-    // moveY[creature] = -moveY[creature];
     short mx = moveX[creature];
     short my = moveY[creature];
-
-    // moveX[creature] = my;
-    // moveY[creature] = mx;
 
     // if (mx == 1 && my == 0)
     // {
@@ -297,32 +317,53 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     //   mx = 1;
     //   my = 0;
     // }
-    // unsigned int ranNum = getNextRandom(creature, randomNumbers) % 4;
-    if (neighbors >= 3)
+
+    if (mx == 0 && my == 0)
     {
-
-      unsigned int ranNum = (neighbors) % 4;
-
-      mx = 0;
-      my = 0;
-
-      if (ranNum == 0)
+      if (neighbors <= 3)
       {
-        mx = 1;
-      }
-      else if (ranNum == 1)
-      {
-        my = 1;
-      }
-      else if (ranNum == 2)
-      {
-        mx = -1;
-      }
-      else
-      {
-        my = -1;
+        int ranNum = getNextRandom(creature, randomNumbers) % 15;
+        if (ranNum == 0)
+          mx = -1;
+        else if (ranNum == 1)
+          my = -1;
+        else if (ranNum == 2)
+          mx = 1;
+        else
+          my = 1;
       }
     }
+    else
+    {
+      mx = 0;
+      my = 0;
+    }
+
+    // if (neighbors >= 3)
+    // {
+    //
+    //   unsigned int ranNum = (neighbors) % 4;
+    //
+    //   mx = 0;
+    //   my = 0;
+    //
+    //   if (ranNum == 0)
+    //   {
+    //     mx = 1;
+    //   }
+    //   else if (ranNum == 1)
+    //   {
+    //     my = 1;
+    //   }
+    //   else if (ranNum == 2)
+    //   {
+    //     mx = -1;
+    //   }
+    //   else
+    //   {
+    //     my = -1;
+    //   }
+    // }
 
 
     moveX[creature] = mx;
