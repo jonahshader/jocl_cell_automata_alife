@@ -1,17 +1,18 @@
 package jonahshader
 
 import processing.core.PApplet
+import processing.core.PConstants
 import processing.event.KeyEvent
 import kotlin.math.pow
 import kotlin.math.tanh
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 1920
-        const val SCREEN_HEIGHT = 1080
+        const val SCREEN_WIDTH = 2560
+        const val SCREEN_HEIGHT = 1440
 
-        const val WORLD_WIDTH = 8192/8
-        const val WORLD_HEIGHT = 8192/8
+        const val WORLD_WIDTH = 8192/(9 * 4)
+        const val WORLD_HEIGHT = 8192/(12 * 4)
     }
 
     private val noDrawToggleKey = 'o'
@@ -35,17 +36,20 @@ class App : PApplet() {
     private lateinit var sim: Simulator
 
     override fun settings() {
-        size(SCREEN_WIDTH, SCREEN_HEIGHT)
+//        size(SCREEN_WIDTH, SCREEN_HEIGHT)
+        fullScreen()
         noSmooth()
+//        noAlpha()
+
     }
 
     override fun setup() {
         frameRate(165f)
-
+        blendMode(PConstants.REPLACE)
         loadPixels()
         updatePixels()
 
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (WORLD_WIDTH * WORLD_HEIGHT) / 6, "main_cl_program.cl")
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (WORLD_WIDTH * WORLD_HEIGHT) / 4, "main_cl_program.cl")
     }
 
     override fun draw() {

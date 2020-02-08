@@ -11,7 +11,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private var localViewUpdated = false
     private var currentTick = 0L
 
-    private var ran = Random()
+    private var ran = Random(1)
 
     // define data arrays for opencl kernels
     private val worldSize = clp.createCLIntArray(2)
@@ -130,8 +130,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         for (i in 0 until numCreatures) {
             var tempMoveX = 0
             var tempMoveY = 0
-            val polarity = Math.random() > 0.5
-            val direction = Math.random() > 0.5
+            val polarity = ran.nextFloat() > 0.5
+            val direction = ran.nextFloat() > 0.5
             if (polarity)
                 tempMoveX = if (direction) 1 else -1
             else
@@ -144,8 +144,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
             var findingSpotForCreature = true
             while (findingSpotForCreature) {
-                val x = (Math.random() * worldWidth).toInt()
-                val y = (Math.random() * worldHeight).toInt()
+                val x = (ran.nextFloat() * worldWidth).toInt()
+                val y = (ran.nextFloat() * worldHeight).toInt()
 
                 if (worldA.array[x + y * worldWidth] == -1) {
                     creatureX.array[i] = x

@@ -157,7 +157,6 @@ renderKernel(global int* worldSize, global int* writingToA,
     int cx = creatureX[cell];
     int cy = creatureY[cell];
 
-    //TODO: does this work?
     if (abs(pcx - cx) > 1)
     {
       if (worldX > (worldSize[0]/2))
@@ -320,9 +319,9 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
 
     if (mx == 0 && my == 0)
     {
-      if (neighbors <= 3)
+      if (neighbors <= 4)
       {
-        int ranNum = getNextRandom(creature, randomNumbers) % 15;
+        int ranNum = getNextRandom(creature, randomNumbers) % 4;
         if (ranNum == 0)
           mx = -1;
         else if (ranNum == 1)
