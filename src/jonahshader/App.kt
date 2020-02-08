@@ -7,11 +7,11 @@ import kotlin.math.tanh
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 800
-        const val SCREEN_HEIGHT = 600
+        const val SCREEN_WIDTH = 1920
+        const val SCREEN_HEIGHT = 1080
 
-        const val WORLD_WIDTH = 8192/32
-        const val WORLD_HEIGHT = 8192/32
+        const val WORLD_WIDTH = 8192/8
+        const val WORLD_HEIGHT = 8192/8
     }
 
     private val noDrawToggleKey = 'o'
@@ -26,6 +26,9 @@ class App : PApplet() {
     private var zoom = 8f
     private var xCam = WORLD_WIDTH / 2f
     private var yCam = WORLD_HEIGHT / 2f
+    private var xCamVel = 0f
+    private var yCamVel = 0f
+    private var zoomVel = 0f
 
     private var iterationsPerFrame = 0.125f
 
@@ -37,7 +40,7 @@ class App : PApplet() {
     }
 
     override fun setup() {
-        frameRate(60f)
+        frameRate(165f)
 
         loadPixels()
         updatePixels()
@@ -46,10 +49,20 @@ class App : PApplet() {
     }
 
     override fun draw() {
-        if (upPressed) yCam -= 8/zoom
-        if (downPressed) yCam += 8/zoom
-        if (leftPressed) xCam -= 8/zoom
-        if (rightPressed) xCam += 8/zoom
+        if (upPressed) yCamVel -= 0.25f
+        if (downPressed) yCamVel += 0.25f
+        if (leftPressed) xCamVel -= 0.25f
+        if (rightPressed) xCamVel += 0.25f
+
+        xCamVel = friction(xCamVel, 0.125f)
+        yCamVel = friction(yCamVel, 0.125f)
+
+        xCamVel = velCap(xCamVel, 4f)
+        yCamVel = velCap(yCamVel, 4f)
+
+        xCam += xCamVel / zoom
+        yCam += yCamVel / zoom
+
 
         val framesPerIteration = (1 / iterationsPerFrame).toInt()
 
@@ -74,6 +87,7 @@ class App : PApplet() {
 //            progress *= 5f
 //            progress = (1f - cos(PI*progress))/2f
             sim.render(xCam, yCam, zoom, progress)
+            color(0.5f)
         }
 
         updatePixels()
@@ -98,6 +112,7 @@ class App : PApplet() {
             }
             ']' -> iterationsPerFrame *= 2f
             '[' -> iterationsPerFrame *= 0.5f
+            '`' -> saveFrame("screenshot.png")
         }
     }
 
@@ -110,4 +125,18 @@ class App : PApplet() {
             'd' -> rightPressed = false
         }
     }
+
+    private fun friction(vel: Float, reduction: Float) : Float {
+        var out = vel
+        if (vel > 0) {
+            out -= reduction
+            if (out < 0) out = 0f
+        } else {
+            out += reduction
+            if (out > 0) out = 0f
+        }
+        return out
+    }
+
+    private fun velCap(vel: Float, cap: Float) : Float = if (vel > cap) cap else if (vel < -cap) -cap else vel
 }

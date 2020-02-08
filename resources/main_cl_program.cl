@@ -130,11 +130,9 @@ renderKernel(global int* worldSize, global int* writingToA,
   float worldXF = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
   float worldYF = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
 
-  worldXF = fwrap(worldXF, worldSize[0]);
-  worldYF = fwrap(worldYF, worldSize[1]);
+  worldXF = fwrap(worldXF + .5f, worldSize[0])-.5f;
+  worldYF = fwrap(worldYF + .5f, worldSize[1])-.5f;
 
-  // int worldX = floor(worldXF + 0.5f);
-  // int worldY = floor(worldYF + 0.5f);
   int worldX = wrap(floor(worldXF + .5f), worldSize[0]);
   int worldY = wrap(floor(worldYF + .5f), worldSize[1]);
 
@@ -146,7 +144,9 @@ renderKernel(global int* worldSize, global int* writingToA,
   int cell = readWorld[posToIndexWrapped(worldX, worldY, worldSize)];
   if (cell < 0) cell = writeWorld[posToIndexWrapped(worldX, worldY, worldSize)];
 
-  int color = BLACK;
+  int red = 0;
+  int green = 0;
+  int blue = 0;
   if (cell >= 0)
   {
     int pcx = pCreatureX[cell];
@@ -182,32 +182,58 @@ renderKernel(global int* worldSize, global int* writingToA,
       }
     }
 
+    // interpolate position of creature moving from previous pos to new pos
     float ix = interpolate(pcx, cx, screenSizeCenterScale[5]);
     float iy = interpolate(pcy, cy, screenSizeCenterScale[5]);
+
+    // square boundaries
     float xMin = ix - 0.5f;
     float xMax = ix + 0.5f;
     float yMin = iy - 0.5f;
     float yMax = iy + 0.5f;
+
     float dx = ix - worldXF;
     float dy = iy - worldYF;
     float dist = sqrt(dx * dx + dy * dy);
-    if (dist <= 0.5f)
-    // if (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax)
+    bool renderSquare = (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax) && screenSizeCenterScale[4] < 2.1f;
+    int colorType = cell % 3;
+
+    if (renderSquare)
     {
-      int colorType = cell % 3;
+      red = 255;
+      green = 255;
+      blue = 255;
       if (colorType == 0)
-        color = 0xffffbbbb;
+        red *= 0.5f;
       else if (colorType == 1)
-        color = 0xffbbffbb;
+        green *= 0.5f;
       else
-        color = 0xffbbbbff;
+        blue *= 0.5f;
+    }
+    else
+    {
+      float brightness = max(0.5f - dist, 0.0f) * 2.0f;
+      brightness = sqrt(1-pow(brightness - 1, 2.0f));
+      // brightness = pow(brightness, 0.3f);
+      red = brightness * 255;
+      green = red;
+      blue = red;
+
+      if (colorType == 0)
+        red *= 0.5f;
+      else if (colorType == 1)
+        green *= 0.5f;
+      else
+        blue *= 0.5f;
     }
   }
   else if (cell == -2)
   {
-    color = 0xffccffcc;
+    red = 100;
+    green = 255;
+    blue = 100;
   }
-  screen[index] = color;
+  screen[index] = 0xff000000 | (red << 16) | (green << 8) | (blue);
 }
 
 // runs per cell
