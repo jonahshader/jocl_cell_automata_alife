@@ -1,6 +1,8 @@
 #define WHITE (0xffffffff)
 #define BLACK (0xff000000)
 
+#define HUE_SPACING (2.09439510239319549231f)
+
 // uncomment one option
 // #define ANIMATION_STEPPING_ENABLED
 
@@ -21,6 +23,9 @@ float interpolate(float a, float b, float progress);
 unsigned int getNextRandom(int index, global unsigned int* randomNumbers);
 int numNeighbors(int x, int y, global int* readWorld, global int* worldSize);
 float fwrap(float value, float range);
+float hueToRed(float hue);
+float hueToGreen(float hue);
+float hueToBlue(float hue);
 
 
 // this kernel runs per creature
@@ -121,7 +126,8 @@ renderKernel(global int* worldSize, global int* writingToA,
   global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
   global float* screenSizeCenterScale, global int* screen,
-  global short* moveX, global short* moveY)
+  global short* moveX, global short* moveY,
+  global float* creatureHue)
 {
   int index = get_global_id(0);
   int screenX = index % ((int)screenSizeCenterScale[0]);
@@ -157,6 +163,12 @@ renderKernel(global int* worldSize, global int* writingToA,
     int cx = creatureX[cell];
     int cy = creatureY[cell];
 
+    // undo wrapping from pCreature to creature for correct interpolation
+    // if this wasn't here, the interpolation would make the creature fly
+    // across the map because on the previous frame it could have been
+    // on x = 0, and next frame x = -1 which gets wrapped to world width - 1
+    // interpolating between 0 and world width - 1 would make the creature
+    // fly across the map, which is not the intended behavior
     if (abs(pcx - cx) > 1)
     {
       if (worldX > (worldSize[0]/2))
@@ -195,7 +207,7 @@ renderKernel(global int* worldSize, global int* writingToA,
     float ix = interpolate(pcx, cx, customProgress);
     float iy = interpolate(pcy, cy, customProgress);
 
-    // square boundaries
+    // find square boundaries
     float xMin = ix - 0.5f;
     float xMax = ix + 0.5f;
     float yMin = iy - 0.5f;
@@ -203,59 +215,39 @@ renderKernel(global int* worldSize, global int* writingToA,
 
     float dx = ix - worldXF;
     float dy = iy - worldYF;
-    float dist = sqrt(dx * dx + dy * dy);
 
-    bool renderSquare = (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax) && screenSizeCenterScale[4] < 2.1f;
-    int colorType = cell % 3;
+    // renderAsSquares means the camera is zoome out too far for circles to make screenSizeCenterScale
+    // so they will just be rendered as squares
+    bool renderAsSquares = screenSizeCenterScale[4] < 2.1f;
+    bool renderSquare = (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax) && renderAsSquares;
 
-    if (renderSquare)
+    float hue = creatureHue[cell];
+    red = hueToRed(hue) * 255.0f;
+    green = hueToGreen(hue) * 255.0f;
+    blue = hueToBlue(hue) * 255.0f;
+
+    if (!renderSquare)
     {
-      red = 255;
-      green = 255;
-      blue = 255;
-      if (colorType == 0)
-        red *= 0.5f;
-      else if (colorType == 1)
-        green *= 0.5f;
-      else
-        blue *= 0.5f;
-    }
-    else
-    {
+      float distToCreatureCenter = sqrt(dx * dx + dy * dy);
       float brightness;
       #ifdef ANIMATION_STEPPING_ENABLED
       float progMult = (pow((0.5f - customProgress) * 2, 2.0f) + 1)/2.0f;
       if (pcx == cx && pcy == cy) progMult = 1.0f;
       float maxDist = 1/progMult;
       float maxDistPow = maxDist * maxDist;
-      float customDist = dist / progMult;
+      float customDist = distToCreatureCenter / progMult;
       brightness = max(0.5f - customDist, 0.0f) * 2.0f;
       brightness = sqrt(1-pow(brightness - 1, 2.0f)) * progMult;
       #endif // ANIMATION_STEPPING_ENABLED
       #ifndef ANIMATION_STEPPING_ENABLED
-      brightness = max(0.5f - dist, 0.0f) * 2.0f;
+      brightness = max(0.5f - distToCreatureCenter, 0.0f) * 2.0f;
       brightness = sqrt(1-pow(brightness - 1, 2.0f));
       #endif // ANIMATION_STEPPING_ENABLED
 
-
-      // brightness = pow(brightness, 0.3f);
-      red = brightness * 255;
-      green = red;
-      blue = red;
-
-      if (colorType == 0)
-        red *= 0.5f;
-      else if (colorType == 1)
-        green *= 0.5f;
-      else
-        blue *= 0.5f;
+      red *= brightness;
+      green *= brightness;
+      blue *= brightness;
     }
-  }
-  else if (cell == -2)
-  {
-    red = 100;
-    green = 255;
-    blue = 100;
   }
   screen[index] = 0xff000000 | (red << 16) | (green << 8) | (blue);
 }
@@ -322,14 +314,19 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
       if (neighbors <= 4)
       {
         int ranNum = getNextRandom(creature, randomNumbers) % 4;
-        if (ranNum == 0)
-          mx = -1;
-        else if (ranNum == 1)
-          my = -1;
-        else if (ranNum == 2)
-          mx = 1;
-        else
-          my = 1;
+        switch (ranNum)
+        {
+          case 0: mx = -1;
+            break;
+          case 1: my = -1;
+            break;
+          case 2: mx = 1;
+            break;
+          case 3: my = 1;
+            break;
+          default: my = 1;
+            break;
+        }
       }
     }
     else
@@ -368,6 +365,12 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     moveX[creature] = mx;
     moveY[creature] = my;
   }
+}
+
+kernel void
+flipWritingToAKernel(global int* writingToA)
+{
+  writingToA[0] = writingToA[0] == 0 ? 1 : 0;
 }
 
 inline int wrap(int value, int range)
@@ -477,4 +480,19 @@ inline int numNeighbors(int x, int y, global int* readWorld, global int* worldSi
   neighbors += readWorld[posToIndexWrapped(x + 1, y + 1, worldSize)] >= 0 ? 1 : 0;
 
   return neighbors;
+}
+
+inline float hueToRed(float hue)
+{
+  return (1.0f + cos(hue)) / 2.0f;
+}
+
+inline float hueToGreen(float hue)
+{
+  return (1.0f + cos(hue + HUE_SPACING)) / 2.0f;
+}
+
+inline float hueToBlue(float hue)
+{
+  return (1.0f + cos(hue + HUE_SPACING * 2.0f)) / 2.0f;
 }

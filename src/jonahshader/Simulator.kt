@@ -5,13 +5,10 @@ import jonahshader.opencl.OpenCLProgram
 import processing.core.PApplet
 import java.util.*
 
-class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String) {
-    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel", "renderKernel", "updateCreatureKernel", "addFoodKernel"))
-
-    private var localViewUpdated = false
+class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
+    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel", "renderKernel", "updateCreatureKernel", "addFoodKernel", "flipWritingToAKernel"))
     private var currentTick = 0L
-
-    private var ran = Random(1)
+    private var ran = Random(seed)
 
     // define data arrays for opencl kernels
     private val worldSize = clp.createCLIntArray(2)
@@ -28,7 +25,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val screenSizeCenterScale = clp.createCLFloatArray(6)
     private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
     private val randomNumbers = clp.createCLIntArray(worldWidth * worldHeight)
-    private val worldFood = clp.createCLShortArray(worldWidth * worldHeight)
+    private val worldObjects = clp.createCLShortArray(worldWidth * worldHeight)
+    private val creatureHue = clp.createCLFloatArray(numCreatures)
 
     init {
         initWorld()
@@ -71,6 +69,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screen.registerAndSendArgument(renderKernel, i++)
         moveX.registerAndSendArgument(renderKernel, i++)
         moveY.registerAndSendArgument(renderKernel, i++)
+        creatureHue.registerAndSendArgument(renderKernel, i++)
 
         val updateCreatureKernel = clp.getKernel("updateCreatureKernel")
         i = 0
@@ -93,6 +92,10 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         worldB.registerAndSendArgument(addFoodKernel, i++)
         randomNumbers.registerAndSendArgument(addFoodKernel, i++)
 
+        val flipWritingToAKernel = clp.getKernel("flipWritingToAKernel")
+        i = 0
+        writingToA.registerAndSendArgument(flipWritingToAKernel, i++)
+
         worldSize.copyToDevice()
         writingToA.copyToDevice()
         worldA.copyToDevice()
@@ -107,6 +110,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screenSizeCenterScale.copyToDevice()
         screen.copyToDevice()
         randomNumbers.copyToDevice()
+        worldObjects.copyToDevice()
+        creatureHue.copyToDevice()
     }
 
     private fun initWorld() {
@@ -126,6 +131,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             worldB.array[i] = -1
             randomNumbers.array[i] = ran.nextInt()
         }
+
         // init creatures
         for (i in 0 until numCreatures) {
             var tempMoveX = 0
@@ -141,6 +147,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             moveY.array[i] = tempMoveY.toShort()
 
             lastMoveSuccess.array[i] = 1
+            creatureHue.array[i] = (ran.nextDouble() * Math.PI * 2.0).toFloat()
 
             var findingSpotForCreature = true
             while (findingSpotForCreature) {
@@ -163,13 +170,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     fun run() {
         clp.executeKernel("movementCleanupKernel", numCreatures.toLong())
         clp.waitForCL()
-
-        if (writingToA.array[0] == 0)
-            writingToA.array[0] = 1
-        else
-            writingToA.array[0] = 0
-
-        writingToA.copyToDevice()
+        clp.executeKernel("flipWritingToAKernel", 1L)
         clp.waitForCL()
         clp.executeKernel("updateCreatureKernel", numCreatures.toLong())
         clp.waitForCL()
@@ -178,8 +179,6 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         if (currentTick % 32 == 0L) {
 //            clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
         }
-
-        localViewUpdated = false
         currentTick++
     }
 
@@ -195,21 +194,4 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screen.copyFromDevice()
         clp.waitForCL()
     }
-
-    fun getUpdatedWorld() : IntArray {
-        if (!localViewUpdated) {
-            if (writingToA.array[0] == 0)
-                worldA.copyFromDevice()
-            else
-                worldB.copyFromDevice()
-            clp.waitForCL()
-            localViewUpdated = true
-        }
-
-        return if (writingToA.array[0] == 0)
-            worldA.array
-        else
-            worldB.array
-    }
-
 }

@@ -3,6 +3,7 @@ package jonahshader
 import processing.core.PApplet
 import processing.core.PConstants
 import processing.event.KeyEvent
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.tanh
 
@@ -11,8 +12,8 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 2560
         const val SCREEN_HEIGHT = 1440
 
-        const val WORLD_WIDTH = 8192/(9 * 4)
-        const val WORLD_HEIGHT = 8192/(12 * 4)
+        const val WORLD_WIDTH = 8192/(8)
+        const val WORLD_HEIGHT = 8192/(8)
     }
 
     private val noDrawToggleKey = 'o'
@@ -24,12 +25,12 @@ class App : PApplet() {
     private var upPressed = false
     private var downPressed = false
 
-    private var zoom = 8f
-    private var xCam = WORLD_WIDTH / 2f
-    private var yCam = WORLD_HEIGHT / 2f
-    private var xCamVel = 0f
-    private var yCamVel = 0f
-    private var zoomVel = 0f
+    private var zoom = 8.0
+    private var xCam = WORLD_WIDTH / 2.0
+    private var yCam = WORLD_HEIGHT / 2.0
+    private var xCamVel = 0.0
+    private var yCamVel = 0.0
+    private var zoomVel = 0.0
 
     private var iterationsPerFrame = 0.125f
 
@@ -49,20 +50,22 @@ class App : PApplet() {
         loadPixels()
         updatePixels()
 
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, (WORLD_WIDTH * WORLD_HEIGHT) / 4, "main_cl_program.cl")
+        val seed = (Math.random() * Long.MAX_VALUE).toLong()
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, ((WORLD_WIDTH * WORLD_HEIGHT) / 2.5).toInt(), "main_cl_program.cl", seed)
+        println("seed: $seed")
     }
 
     override fun draw() {
-        if (upPressed) yCamVel -= 0.25f
-        if (downPressed) yCamVel += 0.25f
-        if (leftPressed) xCamVel -= 0.25f
-        if (rightPressed) xCamVel += 0.25f
+        if (upPressed) yCamVel -= 0.25
+        if (downPressed) yCamVel += 0.25
+        if (leftPressed) xCamVel -= 0.25
+        if (rightPressed) xCamVel += 0.25
 
-        xCamVel = friction(xCamVel, 0.125f)
-        yCamVel = friction(yCamVel, 0.125f)
+        xCamVel = friction(xCamVel, 0.125)
+        yCamVel = friction(yCamVel, 0.125)
 
-        xCamVel = velCap(xCamVel, 4f)
-        yCamVel = velCap(yCamVel, 4f)
+        xCamVel = velCap(xCamVel, 4.0)
+        yCamVel = velCap(yCamVel, 4.0)
 
         xCam += xCamVel / zoom
         yCam += yCamVel / zoom
@@ -81,7 +84,7 @@ class App : PApplet() {
 
         loadPixels()
         if (iterationsPerFrame > 1) {
-            sim.render(xCam, yCam, zoom, 1f)
+            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), 1f)
         } else {
             var progress = ((frameCount % framesPerIteration) / framesPerIteration.toFloat()) + iterationsPerFrame
 //            progress = min(progress, 1f).pow(0.25f)
@@ -90,7 +93,7 @@ class App : PApplet() {
 //            progress = tanh(progress * 10) / tanh(10f)
 //            progress *= 5f
 //            progress = (1f - cos(PI*progress))/2f
-            sim.render(xCam, yCam, zoom, progress)
+            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), progress)
             color(0.5f)
         }
 
@@ -109,10 +112,10 @@ class App : PApplet() {
             'a' -> leftPressed = true
             's' -> downPressed = true
             'd' -> rightPressed = true
-            'e' -> zoom *= 2f
+            'e' -> zoom *= 2.0
             'q' -> {
-                zoom /= 2f
-                zoom = max(zoom, 1f)
+                zoom /= 2.0
+                zoom = max(zoom, 1.0)
             }
             ']' -> iterationsPerFrame *= 2f
             '[' -> iterationsPerFrame *= 0.5f
@@ -130,17 +133,17 @@ class App : PApplet() {
         }
     }
 
-    private fun friction(vel: Float, reduction: Float) : Float {
+    private fun friction(vel: Double, reduction: Double) : Double {
         var out = vel
         if (vel > 0) {
             out -= reduction
-            if (out < 0) out = 0f
+            if (out < 0) out = 0.0
         } else {
             out += reduction
-            if (out > 0) out = 0f
+            if (out > 0) out = 0.0
         }
         return out
     }
 
-    private fun velCap(vel: Float, cap: Float) : Float = if (vel > cap) cap else if (vel < -cap) -cap else vel
+    private fun velCap(vel: Double, cap: Double) : Double = if (vel > cap) cap else if (vel < -cap) -cap else vel
 }

@@ -1,6 +1,7 @@
 package jonahshader.opencl
 
 import org.jocl.*
+import java.nio.ByteBuffer
 
 class CLIntArray(val array: IntArray, context: cl_context, private val commandQueue: cl_command_queue) {
     private val memory: cl_mem
