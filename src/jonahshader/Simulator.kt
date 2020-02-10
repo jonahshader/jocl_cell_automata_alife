@@ -6,7 +6,9 @@ import processing.core.PApplet
 import java.util.*
 
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
-    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel", "renderKernel", "updateCreatureKernel", "addFoodKernel", "flipWritingToAKernel"))
+    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel",
+            "renderForegroundSimpleKernel", "renderForegroundDetailedKernel", "updateCreatureKernel", "addFoodKernel",
+            "spreadFoodKernel", "flipWritingToAKernel", "renderBackgroundKernel"))
     private var currentTick = 0L
     private var ran = Random(seed)
 
@@ -26,6 +28,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
     private val randomNumbers = clp.createCLIntArray(worldWidth * worldHeight)
     private val worldObjects = clp.createCLShortArray(worldWidth * worldHeight)
+    private val worldFood = clp.createCLFloatArray(worldWidth * worldHeight)
+    private val worldFoodBackBuffer = clp.createCLFloatArray(worldWidth * worldHeight)
     private val creatureHue = clp.createCLFloatArray(numCreatures)
 
     init {
@@ -55,21 +59,44 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureX.registerAndSendArgument(movementCleanupKernel, i++)
         pCreatureY.registerAndSendArgument(movementCleanupKernel, i++)
 
-        val renderKernel = clp.getKernel("renderKernel")
+        val renderForegroundSimpleKernel = clp.getKernel("renderForegroundSimpleKernel")
         i = 0
-        worldSize.registerAndSendArgument(renderKernel, i++)
-        writingToA.registerAndSendArgument(renderKernel, i++)
-        worldA.registerAndSendArgument(renderKernel, i++)
-        worldB.registerAndSendArgument(renderKernel, i++)
-        creatureX.registerAndSendArgument(renderKernel, i++)
-        creatureY.registerAndSendArgument(renderKernel, i++)
-        pCreatureX.registerAndSendArgument(renderKernel, i++)
-        pCreatureY.registerAndSendArgument(renderKernel, i++)
-        screenSizeCenterScale.registerAndSendArgument(renderKernel, i++)
-        screen.registerAndSendArgument(renderKernel, i++)
-        moveX.registerAndSendArgument(renderKernel, i++)
-        moveY.registerAndSendArgument(renderKernel, i++)
-        creatureHue.registerAndSendArgument(renderKernel, i++)
+        worldSize.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        writingToA.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        worldA.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        worldB.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        creatureX.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        creatureY.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        pCreatureX.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        pCreatureY.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        screenSizeCenterScale.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        screen.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        moveX.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        moveY.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        creatureHue.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+
+        val renderForegroundDetailedKernel = clp.getKernel("renderForegroundDetailedKernel")
+        i = 0
+        worldSize.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        writingToA.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        worldA.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        worldB.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        creatureX.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        creatureY.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        pCreatureX.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        pCreatureY.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        screenSizeCenterScale.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        screen.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        moveX.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        moveY.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        creatureHue.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+
+        val renderBackgroundKernel = clp.getKernel("renderBackgroundKernel")
+        i = 0
+        worldSize.registerAndSendArgument(renderBackgroundKernel, i++)
+        screenSizeCenterScale.registerAndSendArgument(renderBackgroundKernel, i++)
+        worldFood.registerAndSendArgument(renderBackgroundKernel, i++)
+        screen.registerAndSendArgument(renderBackgroundKernel, i++)
 
         val updateCreatureKernel = clp.getKernel("updateCreatureKernel")
         i = 0
@@ -87,10 +114,16 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
         worldSize.registerAndSendArgument(addFoodKernel, i++)
-        writingToA.registerAndSendArgument(addFoodKernel, i++)
-        worldA.registerAndSendArgument(addFoodKernel, i++)
-        worldB.registerAndSendArgument(addFoodKernel, i++)
+        worldFood.registerAndSendArgument(addFoodKernel, i++)
+        worldFoodBackBuffer.registerAndSendArgument(addFoodKernel, i++)
         randomNumbers.registerAndSendArgument(addFoodKernel, i++)
+
+        val spreadFoodKernel = clp.getKernel("spreadFoodKernel")
+        i = 0
+        worldSize.registerAndSendArgument(spreadFoodKernel, i++)
+        worldFood.registerAndSendArgument(spreadFoodKernel, i++)
+        worldFoodBackBuffer.registerAndSendArgument(spreadFoodKernel, i++)
+        randomNumbers.registerAndSendArgument(spreadFoodKernel, i++)
 
         val flipWritingToAKernel = clp.getKernel("flipWritingToAKernel")
         i = 0
@@ -111,6 +144,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screen.copyToDevice()
         randomNumbers.copyToDevice()
         worldObjects.copyToDevice()
+        worldFood.copyToDevice()
+        worldFoodBackBuffer.copyToDevice()
         creatureHue.copyToDevice()
     }
 
@@ -177,7 +212,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         clp.executeKernel("movementKernel", numCreatures.toLong())
         clp.waitForCL()
         if (currentTick % 32 == 0L) {
-//            clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
+            clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
+            clp.executeKernel("spreadFoodKernel", worldWidth * worldHeight.toLong())
         }
         currentTick++
     }
@@ -189,7 +225,13 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screenSizeCenterScale.array[4] = zoom
         screenSizeCenterScale.array[5] = progress
         screenSizeCenterScale.copyToDevice()
-        clp.executeKernel("renderKernel", (graphics.width * graphics.height).toLong())
+        clp.executeKernel("renderBackgroundKernel", graphics.width * graphics.height.toLong())
+        if (zoom > 8) {
+            clp.executeKernel("renderForegroundDetailedKernel", (graphics.width * graphics.height).toLong())
+        } else {
+            clp.executeKernel("renderForegroundSimpleKernel", (graphics.width * graphics.height).toLong())
+        }
+
         clp.waitForCL()
         screen.copyFromDevice()
         clp.waitForCL()

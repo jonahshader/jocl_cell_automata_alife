@@ -37,8 +37,8 @@ class App : PApplet() {
     private lateinit var sim: Simulator
 
     override fun settings() {
-        size(SCREEN_WIDTH, SCREEN_HEIGHT)
-//        fullScreen()
+//        size(SCREEN_WIDTH, SCREEN_HEIGHT)
+        fullScreen()
         noSmooth()
 //        noAlpha()
 
@@ -83,7 +83,7 @@ class App : PApplet() {
 
 
         loadPixels()
-        if (iterationsPerFrame > 1) {
+        if (iterationsPerFrame >= 1) {
             sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), 1f)
         } else {
             var progress = ((frameCount % framesPerIteration) / framesPerIteration.toFloat()) + iterationsPerFrame
@@ -99,7 +99,9 @@ class App : PApplet() {
 
         updatePixels()
         textAlign(LEFT, TOP)
-        text("IPF: $iterationsPerFrame, FPS: $frameRate", 0f, 0f)
+        text("IPF: $iterationsPerFrame, TPS: ${frameRate * iterationsPerFrame}", 0f, 0f)
+
+        red(5)
     }
 
     override fun keyPressed(event: KeyEvent?) {

@@ -26,6 +26,10 @@ float fwrap(float value, float range);
 float hueToRed(float hue);
 float hueToGreen(float hue);
 float hueToBlue(float hue);
+int rgbToRed(int rgb);
+int rgbToGreen(int rgb);
+int rgbToBlue(int rgb);
+int componentsToRgb(int red, int green, int blue);
 
 
 // this kernel runs per creature
@@ -121,7 +125,7 @@ movementCleanupKernel(global int* worldSize, global int* writingToA,
 
 // screenSizeCenterScale is an int array of size 5. width, height, xCenter, yCenter, pixelsPerCell, progress (0 to 1)
 kernel void
-renderKernel(global int* worldSize, global int* writingToA,
+renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
   global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
@@ -206,6 +210,128 @@ renderKernel(global int* worldSize, global int* writingToA,
     #endif // ANIMATION_STEPPING_ENABLED
     float ix = interpolate(pcx, cx, customProgress);
     float iy = interpolate(pcy, cy, customProgress);
+    float dx = ix - worldXF;
+    float dy = iy - worldYF;
+
+    // renderAsSquares means the camera is zoomed out too far for circles to make screenSizeCenterScale
+    // so they will just be rendered as squares
+    float hue = creatureHue[cell];
+    red = hueToRed(hue) * 255.0f;
+    green = hueToGreen(hue) * 255.0f;
+    blue = hueToBlue(hue) * 255.0f;
+
+    float distToCreatureCenter = sqrt(dx * dx + dy * dy);
+    float brightness;
+    #ifdef ANIMATION_STEPPING_ENABLED
+    float progMult = (pow((0.5f - customProgress) * 2, 2.0f) + 1)/2.0f;
+    if (pcx == cx && pcy == cy) progMult = 1.0f;
+    float maxDist = 1/progMult;
+    float maxDistPow = maxDist * maxDist;
+    float customDist = distToCreatureCenter / progMult;
+    brightness = max(0.5f - customDist, 0.0f) * 2.0f;
+    brightness = sqrt(1-pow(brightness - 1, 2.0f)) * progMult;
+    #endif // ANIMATION_STEPPING_ENABLED
+    #ifndef ANIMATION_STEPPING_ENABLED
+    brightness = max(0.5f - distToCreatureCenter, 0.0f) * 2.0f;
+    brightness = sqrt(1-pow(brightness - 1, 2.0f));
+    #endif // ANIMATION_STEPPING_ENABLED
+
+    red *= brightness;
+    green *= brightness;
+    blue *= brightness;
+    int screenRgb = screen[index];
+    int screenRed = rgbToRed(screenRgb);
+    int screenGreen = rgbToGreen(screenRgb);
+    int screenBlue = rgbToBlue(screenRgb);
+    float partCreaturePartScreen = pow(brightness, 0.75f);
+    int newRed = interpolate(screenRed, red, partCreaturePartScreen);
+    int newGreen = interpolate(screenGreen, green, partCreaturePartScreen);
+    int newBlue = interpolate(screenBlue, blue, partCreaturePartScreen);
+
+    screen[index] = componentsToRgb(newRed, newGreen, newBlue);
+  }
+}
+
+kernel void
+renderForegroundSimpleKernel(global int* worldSize, global int* writingToA,
+  global int* worldA, global int* worldB,
+  global int* creatureX, global int* creatureY,
+  global int* pCreatureX, global int* pCreatureY,
+  global float* screenSizeCenterScale, global int* screen,
+  global short* moveX, global short* moveY,
+  global float* creatureHue)
+{
+  int index = get_global_id(0);
+  int screenX = index % ((int)screenSizeCenterScale[0]);
+  int screenY = index / ((int)screenSizeCenterScale[0]);
+
+  float screenXCentered = screenX - (screenSizeCenterScale[0] / 2.0f);
+  float screenYCentered = screenY - (screenSizeCenterScale[1] / 2.0f);
+
+  float worldXF = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
+  float worldYF = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
+
+  worldXF = fwrap(worldXF + .5f, worldSize[0])-.5f;
+  worldYF = fwrap(worldYF + .5f, worldSize[1])-.5f;
+
+  int worldX = wrap(floor(worldXF + .5f), worldSize[0]);
+  int worldY = wrap(floor(worldYF + .5f), worldSize[1]);
+
+  /* figure out which world is being written to
+     and which one is being read from */
+  global int* readWorld = writingToA[0] ? worldB : worldA;
+  global int* writeWorld = writingToA[0] ? worldA : worldB;
+
+  int cell = readWorld[posToIndexWrapped(worldX, worldY, worldSize)];
+  if (cell < 0) cell = writeWorld[posToIndexWrapped(worldX, worldY, worldSize)];
+
+  int red = 0;
+  int green = 0;
+  int blue = 0;
+  if (cell >= 0)
+  {
+    int pcx = pCreatureX[cell];
+    int pcy = pCreatureY[cell];
+    int cx = creatureX[cell];
+    int cy = creatureY[cell];
+
+    // undo wrapping from pCreature to creature for correct interpolation
+    // if this wasn't here, the interpolation would make the creature fly
+    // across the map because on the previous frame it could have been
+    // on x = 0, and next frame x = -1 which gets wrapped to world width - 1
+    // interpolating between 0 and world width - 1 would make the creature
+    // fly across the map, which is not the intended behavior
+    if (abs(pcx - cx) > 1)
+    {
+      if (worldX > (worldSize[0]/2))
+      {
+        if (pcx < cx) pcx += worldSize[0];
+        else          cx  += worldSize[0];
+      }
+      else
+      {
+        if (pcx < cx) cx  -= worldSize[0];
+        else          pcx -= worldSize[0];
+      }
+    }
+    else if (abs(pcy - cy) > 1)
+    {
+      if (worldY > (worldSize[1]/2))
+      {
+        if (pcy < cy) pcy += worldSize[1];
+        else          cy  += worldSize[1];
+      }
+      else
+      {
+        if (pcy < cy) cy  -= worldSize[1];
+        else          pcy -= worldSize[1];
+      }
+    }
+
+    // interpolate position of creature moving from previous pos to new pos
+    float customProgress = screenSizeCenterScale[5];
+    float ix = interpolate(pcx, cx, customProgress);
+    float iy = interpolate(pcy, cy, customProgress);
 
     // find square boundaries
     float xMin = ix - 0.5f;
@@ -213,61 +339,83 @@ renderKernel(global int* worldSize, global int* writingToA,
     float yMin = iy - 0.5f;
     float yMax = iy + 0.5f;
 
-    float dx = ix - worldXF;
-    float dy = iy - worldYF;
-
-    // renderAsSquares means the camera is zoome out too far for circles to make screenSizeCenterScale
-    // so they will just be rendered as squares
-    bool renderAsSquares = screenSizeCenterScale[4] < 2.1f;
-    bool renderSquare = (worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax) && renderAsSquares;
-
-    float hue = creatureHue[cell];
-    red = hueToRed(hue) * 255.0f;
-    green = hueToGreen(hue) * 255.0f;
-    blue = hueToBlue(hue) * 255.0f;
-
-    if (!renderSquare)
+    bool renderSquare = worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax;
+    if (renderSquare)
     {
-      float distToCreatureCenter = sqrt(dx * dx + dy * dy);
-      float brightness;
-      #ifdef ANIMATION_STEPPING_ENABLED
-      float progMult = (pow((0.5f - customProgress) * 2, 2.0f) + 1)/2.0f;
-      if (pcx == cx && pcy == cy) progMult = 1.0f;
-      float maxDist = 1/progMult;
-      float maxDistPow = maxDist * maxDist;
-      float customDist = distToCreatureCenter / progMult;
-      brightness = max(0.5f - customDist, 0.0f) * 2.0f;
-      brightness = sqrt(1-pow(brightness - 1, 2.0f)) * progMult;
-      #endif // ANIMATION_STEPPING_ENABLED
-      #ifndef ANIMATION_STEPPING_ENABLED
-      brightness = max(0.5f - distToCreatureCenter, 0.0f) * 2.0f;
-      brightness = sqrt(1-pow(brightness - 1, 2.0f));
-      #endif // ANIMATION_STEPPING_ENABLED
-
-      red *= brightness;
-      green *= brightness;
-      blue *= brightness;
+      float hue = creatureHue[cell];
+      red = hueToRed(hue) * 255.0f;
+      green = hueToGreen(hue) * 255.0f;
+      blue = hueToBlue(hue) * 255.0f;
+      screen[index] = componentsToRgb(red, green, blue);
     }
   }
-  screen[index] = 0xff000000 | (red << 16) | (green << 8) | (blue);
+}
+
+kernel void
+renderBackgroundKernel(global int* worldSize,
+  global float* screenSizeCenterScale,
+  global float* worldFood, global int* screen)
+{
+  int index = get_global_id(0);
+
+  int screenX = index % ((int)screenSizeCenterScale[0]);
+  int screenY = index / ((int)screenSizeCenterScale[0]);
+
+  float screenXCentered = screenX - (screenSizeCenterScale[0] / 2.0f);
+  float screenYCentered = screenY - (screenSizeCenterScale[1] / 2.0f);
+
+  float worldXF = screenSizeCenterScale[2] + (screenXCentered / screenSizeCenterScale[4]);
+  float worldYF = screenSizeCenterScale[3] + (screenYCentered / screenSizeCenterScale[4]);
+
+  worldXF = fwrap(worldXF + .5f, worldSize[0])-.5f;
+  worldYF = fwrap(worldYF + .5f, worldSize[1])-.5f;
+
+  int worldX = wrap(floor(worldXF + .5f), worldSize[0]);
+  int worldY = wrap(floor(worldYF + .5f), worldSize[1]);
+
+  float foodValue = worldFood[posToIndexWrapped(worldX, worldY, worldSize)];
+  int green = foodValue * 255;
+  green = min(255, green);
+  screen[index] = componentsToRgb(0, green, 0);
+
 }
 
 // runs per cell
 kernel void
-addFoodKernel(global int* worldSize, global int* writingToA,
-  global int* worldA, global int* worldB,
+addFoodKernel(global int* worldSize, global float* worldFood,
+  global float* worldFoodBackBuffer,
   global unsigned int* randomNumbers)
 {
   int index = get_global_id(0);
 
-  if (worldA[index] == -1 && worldB[index] == -1)
+  // copy current to back buffer
+  worldFoodBackBuffer[index] = worldFood[index];
+
+  if ((getNextRandom(index, randomNumbers) % ADD_FOOD_CHANCE) == 0)
   {
-    if ((getNextRandom(index, randomNumbers) % ADD_FOOD_CHANCE) == 0)
+    worldFoodBackBuffer[index] = min(1.0f, worldFoodBackBuffer[index] + 0.5f);
+  }
+}
+
+kernel void
+spreadFoodKernel(global int* worldSize, global float* worldFood,
+  global float* worldFoodBackBuffer,
+  global unsigned int* randomNumbers)
+{
+  int index = get_global_id(0);
+  int x = index % worldSize[0];
+  int y = index / worldSize[0];
+
+  float blurResult = 0.0f;
+  for (int iy = -1; iy <= 1; iy++)
+  {
+    for (int ix = -1; ix <= 1; ix++)
     {
-      worldA[index] = -2;
-      worldB[index] = -2;
+      blurResult += worldFoodBackBuffer[posToIndexWrapped(x + ix, y + iy, worldSize)];
     }
   }
+  blurResult /= 9.0f;
+  worldFood[index] = blurResult;
 }
 
 kernel void
@@ -287,27 +435,6 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     int neighbors = numNeighbors(x, y, readWorld, worldSize);
     short mx = moveX[creature];
     short my = moveY[creature];
-
-    // if (mx == 1 && my == 0)
-    // {
-    //   mx = 0;
-    //   my = 1;
-    // }
-    // else if (mx == 0 && my == 1)
-    // {
-    //   mx = -1;
-    //   my = 0;
-    // }
-    // else if (mx == -1 && my == 0)
-    // {
-    //   mx = 0;
-    //   my = -1;
-    // }
-    // else
-    // {
-    //   mx = 1;
-    //   my = 0;
-    // }
 
     if (mx == 0 && my == 0)
     {
@@ -334,33 +461,6 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
       mx = 0;
       my = 0;
     }
-
-    // if (neighbors >= 3)
-    // {
-    //
-    //   unsigned int ranNum = (neighbors) % 4;
-    //
-    //   mx = 0;
-    //   my = 0;
-    //
-    //   if (ranNum == 0)
-    //   {
-    //     mx = 1;
-    //   }
-    //   else if (ranNum == 1)
-    //   {
-    //     my = 1;
-    //   }
-    //   else if (ranNum == 2)
-    //   {
-    //     mx = -1;
-    //   }
-    //   else
-    //   {
-    //     my = -1;
-    //   }
-    // }
-
 
     moveX[creature] = mx;
     moveY[creature] = my;
@@ -468,16 +568,16 @@ inline int numNeighbors(int x, int y, global int* readWorld, global int* worldSi
 {
   int neighbors = 0;
 
-  neighbors += readWorld[posToIndexWrapped(x - 1, y - 1, worldSize)] >= 0 ? 1 : 0;
-  neighbors += readWorld[posToIndexWrapped(x - 0, y - 1, worldSize)] >= 0 ? 1 : 0;
-  neighbors += readWorld[posToIndexWrapped(x + 1, y - 1, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x - 1, y - 1, worldSize)] >= 0;
+  neighbors += readWorld[posToIndexWrapped(x - 0, y - 1, worldSize)] >= 0;
+  neighbors += readWorld[posToIndexWrapped(x + 1, y - 1, worldSize)] >= 0;
 
-  neighbors += readWorld[posToIndexWrapped(x - 1, y - 0, worldSize)] >= 0 ? 1 : 0;
-  neighbors += readWorld[posToIndexWrapped(x + 1, y - 0, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x - 1, y - 0, worldSize)] >= 0;
+  neighbors += readWorld[posToIndexWrapped(x + 1, y - 0, worldSize)] >= 0;
 
-  neighbors += readWorld[posToIndexWrapped(x - 1, y + 1, worldSize)] >= 0 ? 1 : 0;
-  neighbors += readWorld[posToIndexWrapped(x - 0, y + 1, worldSize)] >= 0 ? 1 : 0;
-  neighbors += readWorld[posToIndexWrapped(x + 1, y + 1, worldSize)] >= 0 ? 1 : 0;
+  neighbors += readWorld[posToIndexWrapped(x - 1, y + 1, worldSize)] >= 0;
+  neighbors += readWorld[posToIndexWrapped(x - 0, y + 1, worldSize)] >= 0;
+  neighbors += readWorld[posToIndexWrapped(x + 1, y + 1, worldSize)] >= 0;
 
   return neighbors;
 }
@@ -495,4 +595,13 @@ inline float hueToGreen(float hue)
 inline float hueToBlue(float hue)
 {
   return (1.0f + cos(hue + HUE_SPACING * 2.0f)) / 2.0f;
+}
+
+inline int rgbToRed(int rgb){return (rgb >> 16) & 0xff;}
+inline int rgbToGreen(int rgb){return (rgb >> 8) & 0xff;}
+inline int rgbToBlue(int rgb){return rgb & 0xff;}
+
+inline int componentsToRgb(int red, int green, int blue)
+{
+  return 0xff000000 | (red << 16) | (green << 8) | (blue);
 }
