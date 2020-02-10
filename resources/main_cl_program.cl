@@ -6,7 +6,7 @@
 // uncomment one option
 // #define ANIMATION_STEPPING_ENABLED
 
-#define ADD_FOOD_CHANCE 50
+#define ADD_FOOD_CHANCE 64
 
 int wrap(int value, int range);
 // int indexToX(int index, global int* worldSize);
@@ -38,12 +38,12 @@ movementKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
   global short* moveX, global short* moveY, global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
-  global short* lastMoveSuccess)
+  global short* lastMoveSuccess, global short* creatureEnergy)
 {
-  int creatureIndex = get_global_id(0);
+  int creature = get_global_id(0);
   //copy current pos to previous pos
-  pCreatureX[creatureIndex] = creatureX[creatureIndex];
-  pCreatureY[creatureIndex] = creatureY[creatureIndex];
+  pCreatureX[creature] = creatureX[creature];
+  pCreatureY[creature] = creatureY[creature];
 
   /* figure out which world is being written to
      and which one is being read from */
@@ -60,19 +60,19 @@ movementKernel(global int* worldSize, global int* writingToA,
     readWorld = worldA;
   }
 
-  int cx = creatureX[creatureIndex];
-  int cy = creatureY[creatureIndex];
+  int cx = creatureX[creature];
+  int cy = creatureY[creature];
   int newX = cx;
   int newY = cy;
 
   bool moveSuccessful = false;
 
   // if creature is attempting to move,
-  if (moveX[creatureIndex] != 0 || moveY[creatureIndex] != 0)
+  if (moveX[creature] != 0 || moveY[creature] != 0)
   {
     // check position if there is a creature there already
-    int moveToX = wrap(cx + moveX[creatureIndex], worldSize[0]);
-    int moveToY = wrap(cy + moveY[creatureIndex], worldSize[1]);
+    int moveToX = wrap(cx + moveX[creature], worldSize[0]);
+    int moveToY = wrap(cy + moveY[creature], worldSize[1]);
 
     int cellAtPos = readWorld[moveToX + moveToY * worldSize[0]];
 
@@ -86,20 +86,20 @@ movementKernel(global int* worldSize, global int* writingToA,
       if (numMovingHere == 1)
       {
         // we can move successfully because we are the only one trying to go there
-        // lastMoveSuccess[creatureIndex] = true;
+        // lastMoveSuccess[creature] = true;
         newX = moveToX;
         newY = moveToY;
         moveSuccessful = true;
+        creatureEnergy[creature]--;
       }
     }
   }
-  writeWorld[newX + newY * worldSize[0]] = creatureIndex;
+  writeWorld[newX + newY * worldSize[0]] = creature;
   // update position
-  creatureX[creatureIndex] = newX;
-  creatureY[creatureIndex] = newY;
-  lastMoveSuccess[creatureIndex] = moveSuccessful;
+  creatureX[creature] = newX;
+  creatureY[creature] = newY;
+  lastMoveSuccess[creature] = moveSuccessful;
 }
-
 
 
 // this kernel is called directly after movementKernel.
@@ -109,15 +109,15 @@ movementCleanupKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
   global int* pCreatureX, global int* pCreatureY)
 {
-  int creatureIndex = get_global_id(0);
+  int creature = get_global_id(0);
 
   /* figure out which world is being written to
      and which one is being read from */
   global int* readWorld = writingToA[0] ? worldB : worldA;
 
   // delete creatures from readWorld
-  int cx = pCreatureX[creatureIndex];
-  int cy = pCreatureY[creatureIndex];
+  int cx = pCreatureX[creature];
+  int cy = pCreatureY[creature];
 
   // set position in world where creature was to -1 to indicate empty space
   readWorld[cx + cy * worldSize[0]] = -1;
@@ -236,9 +236,9 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
     brightness = sqrt(1-pow(brightness - 1, 2.0f));
     #endif // ANIMATION_STEPPING_ENABLED
 
-    red *= brightness;
-    green *= brightness;
-    blue *= brightness;
+    red *= brightness * .5f + .5f;
+    green *= brightness * .5f + .5f;
+    blue *= brightness * .5f + .5f;
     int screenRgb = screen[index];
     int screenRed = rgbToRed(screenRgb);
     int screenGreen = rgbToGreen(screenRgb);
@@ -415,7 +415,7 @@ spreadFoodKernel(global int* worldSize, global float* worldFood,
     }
   }
   blurResult /= 9.0f;
-  worldFood[index] = blurResult;
+  worldFood[index] = interpolate(blurResult, worldFoodBackBuffer[posToIndexWrapped(x, y, worldSize)], 0.5f);
 }
 
 kernel void
@@ -423,47 +423,61 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
   global short* moveX, global short* moveY,
   global short* lastMoveSuccess, global unsigned int* randomNumbers,
-  global int* creatureX, global int* creatureY)
+  global int* creatureX, global int* creatureY, global short* creatureEnergy,
+  global float* worldFood)
 {
   int creature = get_global_id(0);
-  if (!lastMoveSuccess[creature])
-  {
-    global int* readWorld = writingToA[0] ? worldB : worldA;
-    global int* writeWorld = writingToA[0] ? worldA : worldB;
-    int x = creatureX[creature];
-    int y = creatureY[creature];
-    int neighbors = numNeighbors(x, y, readWorld, worldSize);
-    short mx = moveX[creature];
-    short my = moveY[creature];
+  global int* readWorld = writingToA[0] ? worldB : worldA;
+  global int* writeWorld = writingToA[0] ? worldA : worldB;
+  int x = creatureX[creature];
+  int y = creatureY[creature];
 
-    if (mx == 0 && my == 0)
+  int worldIndex = posToIndexWrapped(x, y, worldSize);
+  creatureEnergy[creature] += worldFood[worldIndex] * 1024;
+  worldFood[worldIndex] = 0.0f;
+
+  if (creatureEnergy[creature] >= 1)
+  {
+    if (!lastMoveSuccess[creature])
     {
-      if (neighbors <= 4)
+      int neighbors = numNeighbors(x, y, readWorld, worldSize);
+      short mx = moveX[creature];
+      short my = moveY[creature];
+
+      if (mx == 0 && my == 0)
       {
-        int ranNum = getNextRandom(creature, randomNumbers) % 4;
-        switch (ranNum)
+        if (neighbors <= 4)
         {
-          case 0: mx = -1;
-            break;
-          case 1: my = -1;
-            break;
-          case 2: mx = 1;
-            break;
-          case 3: my = 1;
-            break;
-          default: my = 1;
-            break;
+          int ranNum = getNextRandom(creature, randomNumbers) % 4;
+          switch (ranNum)
+          {
+            case 0: mx = -1;
+              break;
+            case 1: my = -1;
+              break;
+            case 2: mx = 1;
+              break;
+            case 3: my = 1;
+              break;
+            default: my = 1;
+              break;
+          }
         }
       }
-    }
-    else
-    {
-      mx = 0;
-      my = 0;
-    }
+      else
+      {
+        mx = 0;
+        my = 0;
+      }
 
-    moveX[creature] = mx;
-    moveY[creature] = my;
+      moveX[creature] = mx;
+      moveY[creature] = my;
+    }
+  }
+  else
+  {
+    moveX[creature] = 0;
+    moveY[creature] = 0;
   }
 }
 

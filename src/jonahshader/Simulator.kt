@@ -6,6 +6,10 @@ import processing.core.PApplet
 import java.util.*
 
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
+    companion object {
+        const val INIT_ENERGY = 128.toShort()
+    }
+
     private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel",
             "renderForegroundSimpleKernel", "renderForegroundDetailedKernel", "updateCreatureKernel", "addFoodKernel",
             "spreadFoodKernel", "flipWritingToAKernel", "renderBackgroundKernel"))
@@ -31,6 +35,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val worldFood = clp.createCLFloatArray(worldWidth * worldHeight)
     private val worldFoodBackBuffer = clp.createCLFloatArray(worldWidth * worldHeight)
     private val creatureHue = clp.createCLFloatArray(numCreatures)
+    private val creatureEnergy = clp.createCLShortArray(numCreatures)
 
     init {
         initWorld()
@@ -49,6 +54,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureX.registerAndSendArgument(movementKernel, i++)
         pCreatureY.registerAndSendArgument(movementKernel, i++)
         lastMoveSuccess.registerAndSendArgument(movementKernel, i++)
+        creatureEnergy.registerAndSendArgument(movementKernel, i++)
 
         val movementCleanupKernel = clp.getKernel("movementCleanupKernel")
         i = 0
@@ -110,6 +116,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         randomNumbers.registerAndSendArgument(updateCreatureKernel, i++)
         creatureX.registerAndSendArgument(updateCreatureKernel, i++)
         creatureY.registerAndSendArgument(updateCreatureKernel, i++)
+        creatureEnergy.registerAndSendArgument(updateCreatureKernel, i++)
+        worldFood.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
@@ -147,6 +155,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         worldFood.copyToDevice()
         worldFoodBackBuffer.copyToDevice()
         creatureHue.copyToDevice()
+        creatureEnergy.copyToDevice()
     }
 
     private fun initWorld() {
@@ -180,6 +189,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
             moveX.array[i] = tempMoveX.toShort()
             moveY.array[i] = tempMoveY.toShort()
+            creatureEnergy.array[i] = INIT_ENERGY
 
             lastMoveSuccess.array[i] = 1
             creatureHue.array[i] = (ran.nextDouble() * Math.PI * 2.0).toFloat()
