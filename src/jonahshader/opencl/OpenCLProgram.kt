@@ -53,7 +53,7 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
 
     fun createCLIntArray(size: Int) : CLIntArray = CLIntArray(IntArray(size), context, commandQueue)
 
-    fun createCLCharArray(size: Int) : CLCharArray = CLCharArray(CharArray(size), context, commandQueue)
+    fun createCLCharArray(size: Int) : CLCharArray = CLCharArray(ByteArray(size), context, commandQueue)
 
     fun createCLShortArray(size: Int) : CLShortArray = CLShortArray(ShortArray(size), context, commandQueue)
 

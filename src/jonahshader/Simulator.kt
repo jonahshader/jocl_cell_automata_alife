@@ -10,7 +10,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         const val INIT_ENERGY = 128.toShort()
     }
 
-    private val clp = OpenCLProgram(openClFilename, arrayOf("movementKernel", "movementCleanupKernel",
+    private val clp = OpenCLProgram(openClFilename, arrayOf("actionKernel", "actionCleanupKernel",
             "renderForegroundSimpleKernel", "renderForegroundDetailedKernel", "updateCreatureKernel", "addFoodKernel",
             "spreadFoodKernel", "flipWritingToAKernel", "renderBackgroundKernel"))
     private var currentTick = 0L
@@ -21,49 +21,51 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val writingToA = clp.createCLIntArray(1)
     private val worldA = clp.createCLIntArray(worldWidth * worldHeight)
     private val worldB = clp.createCLIntArray(worldWidth * worldHeight)
-    private val moveX = clp.createCLShortArray(numCreatures)
-    private val moveY = clp.createCLShortArray(numCreatures)
+    private val selectX = clp.createCLCharArray(numCreatures)
+    private val selectY = clp.createCLCharArray(numCreatures)
     private val creatureX = clp.createCLIntArray(numCreatures)
     private val creatureY = clp.createCLIntArray(numCreatures)
     private val pCreatureX = clp.createCLIntArray(numCreatures)
     private val pCreatureY = clp.createCLIntArray(numCreatures)
-    private val lastMoveSuccess = clp.createCLShortArray(numCreatures)
+    private val lastActionSuccess = clp.createCLCharArray(numCreatures)
     private val screenSizeCenterScale = clp.createCLFloatArray(6)
     private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
     private val randomNumbers = clp.createCLIntArray(worldWidth * worldHeight)
-    private val worldObjects = clp.createCLShortArray(worldWidth * worldHeight)
+    private val worldObjects = clp.createCLCharArray(worldWidth * worldHeight)
     private val worldFood = clp.createCLFloatArray(worldWidth * worldHeight)
     private val worldFoodBackBuffer = clp.createCLFloatArray(worldWidth * worldHeight)
     private val creatureHue = clp.createCLFloatArray(numCreatures)
     private val creatureEnergy = clp.createCLShortArray(numCreatures)
+    private val creatureAction = clp.createCLCharArray(numCreatures)
+    private val creatureDirection = clp.createCLCharArray(numCreatures)
 
     init {
         initWorld()
 
         // register data arrays with kernels
-        val movementKernel = clp.getKernel("movementKernel")
+        val actionKernel = clp.getKernel("actionKernel")
         var i = 0
-        worldSize.registerAndSendArgument(movementKernel, i++)
-        writingToA.registerAndSendArgument(movementKernel, i++)
-        worldA.registerAndSendArgument(movementKernel, i++)
-        worldB.registerAndSendArgument(movementKernel, i++)
-        moveX.registerAndSendArgument(movementKernel, i++)
-        moveY.registerAndSendArgument(movementKernel, i++)
-        creatureX.registerAndSendArgument(movementKernel, i++)
-        creatureY.registerAndSendArgument(movementKernel, i++)
-        pCreatureX.registerAndSendArgument(movementKernel, i++)
-        pCreatureY.registerAndSendArgument(movementKernel, i++)
-        lastMoveSuccess.registerAndSendArgument(movementKernel, i++)
-        creatureEnergy.registerAndSendArgument(movementKernel, i++)
+        worldSize.registerAndSendArgument(actionKernel, i++)
+        writingToA.registerAndSendArgument(actionKernel, i++)
+        worldA.registerAndSendArgument(actionKernel, i++)
+        worldB.registerAndSendArgument(actionKernel, i++)
+        selectX.registerAndSendArgument(actionKernel, i++)
+        selectY.registerAndSendArgument(actionKernel, i++)
+        creatureX.registerAndSendArgument(actionKernel, i++)
+        creatureY.registerAndSendArgument(actionKernel, i++)
+        pCreatureX.registerAndSendArgument(actionKernel, i++)
+        pCreatureY.registerAndSendArgument(actionKernel, i++)
+        lastActionSuccess.registerAndSendArgument(actionKernel, i++)
+        creatureEnergy.registerAndSendArgument(actionKernel, i++)
 
-        val movementCleanupKernel = clp.getKernel("movementCleanupKernel")
+        val actionCleanupKernel = clp.getKernel("actionCleanupKernel")
         i = 0
-        worldSize.registerAndSendArgument(movementCleanupKernel, i++)
-        writingToA.registerAndSendArgument(movementCleanupKernel, i++)
-        worldA.registerAndSendArgument(movementCleanupKernel, i++)
-        worldB.registerAndSendArgument(movementCleanupKernel, i++)
-        pCreatureX.registerAndSendArgument(movementCleanupKernel, i++)
-        pCreatureY.registerAndSendArgument(movementCleanupKernel, i++)
+        worldSize.registerAndSendArgument(actionCleanupKernel, i++)
+        writingToA.registerAndSendArgument(actionCleanupKernel, i++)
+        worldA.registerAndSendArgument(actionCleanupKernel, i++)
+        worldB.registerAndSendArgument(actionCleanupKernel, i++)
+        pCreatureX.registerAndSendArgument(actionCleanupKernel, i++)
+        pCreatureY.registerAndSendArgument(actionCleanupKernel, i++)
 
         val renderForegroundSimpleKernel = clp.getKernel("renderForegroundSimpleKernel")
         i = 0
@@ -77,8 +79,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureY.registerAndSendArgument(renderForegroundSimpleKernel, i++)
         screenSizeCenterScale.registerAndSendArgument(renderForegroundSimpleKernel, i++)
         screen.registerAndSendArgument(renderForegroundSimpleKernel, i++)
-        moveX.registerAndSendArgument(renderForegroundSimpleKernel, i++)
-        moveY.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        selectX.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        selectY.registerAndSendArgument(renderForegroundSimpleKernel, i++)
         creatureHue.registerAndSendArgument(renderForegroundSimpleKernel, i++)
 
         val renderForegroundDetailedKernel = clp.getKernel("renderForegroundDetailedKernel")
@@ -93,8 +95,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureY.registerAndSendArgument(renderForegroundDetailedKernel, i++)
         screenSizeCenterScale.registerAndSendArgument(renderForegroundDetailedKernel, i++)
         screen.registerAndSendArgument(renderForegroundDetailedKernel, i++)
-        moveX.registerAndSendArgument(renderForegroundDetailedKernel, i++)
-        moveY.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        selectX.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        selectY.registerAndSendArgument(renderForegroundDetailedKernel, i++)
         creatureHue.registerAndSendArgument(renderForegroundDetailedKernel, i++)
 
         val renderBackgroundKernel = clp.getKernel("renderBackgroundKernel")
@@ -110,14 +112,15 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         writingToA.registerAndSendArgument(updateCreatureKernel, i++)
         worldA.registerAndSendArgument(updateCreatureKernel, i++)
         worldB.registerAndSendArgument(updateCreatureKernel, i++)
-        moveX.registerAndSendArgument(updateCreatureKernel, i++)
-        moveY.registerAndSendArgument(updateCreatureKernel, i++)
-        lastMoveSuccess.registerAndSendArgument(updateCreatureKernel, i++)
+        selectX.registerAndSendArgument(updateCreatureKernel, i++)
+        selectY.registerAndSendArgument(updateCreatureKernel, i++)
+        lastActionSuccess.registerAndSendArgument(updateCreatureKernel, i++)
         randomNumbers.registerAndSendArgument(updateCreatureKernel, i++)
         creatureX.registerAndSendArgument(updateCreatureKernel, i++)
         creatureY.registerAndSendArgument(updateCreatureKernel, i++)
         creatureEnergy.registerAndSendArgument(updateCreatureKernel, i++)
         worldFood.registerAndSendArgument(updateCreatureKernel, i++)
+        creatureAction.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
@@ -141,13 +144,13 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         writingToA.copyToDevice()
         worldA.copyToDevice()
         worldB.copyToDevice()
-        moveX.copyToDevice()
-        moveY.copyToDevice()
+        selectX.copyToDevice()
+        selectY.copyToDevice()
         creatureX.copyToDevice()
         creatureY.copyToDevice()
         pCreatureX.copyToDevice()
         pCreatureY.copyToDevice()
-        lastMoveSuccess.copyToDevice()
+        lastActionSuccess.copyToDevice()
         screenSizeCenterScale.copyToDevice()
         screen.copyToDevice()
         randomNumbers.copyToDevice()
@@ -156,6 +159,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         worldFoodBackBuffer.copyToDevice()
         creatureHue.copyToDevice()
         creatureEnergy.copyToDevice()
+        creatureAction.copyToDevice()
     }
 
     private fun initWorld() {
@@ -187,11 +191,11 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             else
                 tempMoveY = if (direction) 1 else -1
 
-            moveX.array[i] = tempMoveX.toShort()
-            moveY.array[i] = tempMoveY.toShort()
+            selectX.array[i] = tempMoveX.toByte()
+            selectY.array[i] = tempMoveY.toByte()
             creatureEnergy.array[i] = INIT_ENERGY
 
-            lastMoveSuccess.array[i] = 1
+            lastActionSuccess.array[i] = 1
             creatureHue.array[i] = (ran.nextDouble() * Math.PI * 2.0).toFloat()
 
             var findingSpotForCreature = true
@@ -213,13 +217,13 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     }
 
     fun run() {
-        clp.executeKernel("movementCleanupKernel", numCreatures.toLong())
+        clp.executeKernel("actionCleanupKernel", numCreatures.toLong())
         clp.waitForCL()
         clp.executeKernel("flipWritingToAKernel", 1L)
         clp.waitForCL()
         clp.executeKernel("updateCreatureKernel", numCreatures.toLong())
         clp.waitForCL()
-        clp.executeKernel("movementKernel", numCreatures.toLong())
+        clp.executeKernel("actionKernel", numCreatures.toLong())
         clp.waitForCL()
         if (currentTick % 32 == 0L) {
             clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())

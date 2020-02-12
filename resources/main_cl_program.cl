@@ -1,6 +1,23 @@
 #define WHITE (0xffffffff)
 #define BLACK (0xff000000)
 
+/*
+actions are: do nothing, move forward/backward, rotate,
+eat, place wall, harm/remove wall, copy genetics,
+
+*/
+#define NUM_ACTIONS (7)
+
+typedef enum {
+  NOTHING,
+  MOVE,
+  ROTATE,
+  EAT,
+  PLACE_WALL,
+  DAMAGE,
+  COPY
+} Action;
+
 #define HUE_SPACING (2.09439510239319549231f)
 
 // uncomment one option
@@ -14,9 +31,9 @@ int wrap(int value, int range);
 int posToIndexWrapped(int x, int y, global int* worldSize);
 bool isCreature(int x, int y, global int* worldSize, global int* readWorld);
 int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld,
-  global short* moveX, global short* moveY);
+  global char* selectX, global char* selectY);
 bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize,
-  global int* readWorld, global short* moveX, global short* moveY);
+  global int* readWorld, global char* selectX, global char* selectY);
 int getCell(int x, int y, global int* worldSize, global int* readWorld);
 int roundEven(float number);
 float interpolate(float a, float b, float progress);
@@ -30,15 +47,68 @@ int rgbToRed(int rgb);
 int rgbToGreen(int rgb);
 int rgbToBlue(int rgb);
 int componentsToRgb(int red, int green, int blue);
+void eat(int creature, int foodIndex, global float* creatureEnergy, global float* food);
+
+
+kernel void
+updateCreatureKernel(global int* worldSize, global int* writingToA,
+  global int* worldA, global int* worldB,
+  global char* selectX, global char* selectY,
+  global char* lastActionSuccess, global unsigned int* randomNumbers,
+  global int* creatureX, global int* creatureY, global short* creatureEnergy,
+  global float* worldFood, global char* creatureAction)
+{
+  int creature = get_global_id(0);
+  global int* readWorld = writingToA[0] ? worldB : worldA;
+  global int* writeWorld = writingToA[0] ? worldA : worldB;
+  int x = creatureX[creature];
+  int y = creatureY[creature];
+
+  int worldIndex = posToIndexWrapped(x, y, worldSize);
+
+
+  if (creatureEnergy[creature] >= 1) // if creature is alive,
+  {
+    selectX[creature] = 0;
+    selectY[creature] = 0;
+    // determine next action
+    int nextAction = getNextRandom(creature, randomNumbers) % NUM_ACTIONS
+    switch (nextAction)
+    {
+      case MOVE:
+        break;
+      case ROTATE:
+        break;
+      case EAT:
+        break;
+      case PLACE_WALL:
+
+        break;
+      case DAMAGE:
+        break;
+      case COPY:
+        break;
+      default:
+      case NOTHING:
+        break;
+    }
+    eat(creature, worldIndex, creatureEnergy, worldFood);
+  }
+  else
+  {
+    selectX[creature] = 0;
+    selectY[creature] = 0;
+  }
+}
 
 
 // this kernel runs per creature
 kernel void
-movementKernel(global int* worldSize, global int* writingToA,
+actionKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
-  global short* moveX, global short* moveY, global int* creatureX, global int* creatureY,
+  global char* selectX, global char* selectY, global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
-  global short* lastMoveSuccess, global short* creatureEnergy)
+  global char* lastActionSuccess, global short* creatureEnergy)
 {
   int creature = get_global_id(0);
   //copy current pos to previous pos
@@ -68,11 +138,11 @@ movementKernel(global int* worldSize, global int* writingToA,
   bool moveSuccessful = false;
 
   // if creature is attempting to move,
-  if (moveX[creature] != 0 || moveY[creature] != 0)
+  if (selectX[creature] != 0 || selectY[creature] != 0)
   {
     // check position if there is a creature there already
-    int moveToX = wrap(cx + moveX[creature], worldSize[0]);
-    int moveToY = wrap(cy + moveY[creature], worldSize[1]);
+    int moveToX = wrap(cx + selectX[creature], worldSize[0]);
+    int moveToY = wrap(cy + selectY[creature], worldSize[1]);
 
     int cellAtPos = readWorld[moveToX + moveToY * worldSize[0]];
 
@@ -80,13 +150,13 @@ movementKernel(global int* worldSize, global int* writingToA,
     if (cellAtPos == -1)
     {
       // check 3 neighbors to see if anyone else is trying to go there
-      // if not, go there, set lastMoveSuccess to true
-      // else, set lastMoveSuccess to false
-      int numMovingHere = numCreaturesMovingHere(moveToX, moveToY, worldSize, readWorld, moveX, moveY);
+      // if not, go there, set lastActionSuccess to true
+      // else, set lastActionSuccess to false
+      int numMovingHere = numCreaturesMovingHere(moveToX, moveToY, worldSize, readWorld, selectX, selectY);
       if (numMovingHere == 1)
       {
         // we can move successfully because we are the only one trying to go there
-        // lastMoveSuccess[creature] = true;
+        // lastActionSuccess[creature] = true;
         newX = moveToX;
         newY = moveToY;
         moveSuccessful = true;
@@ -98,14 +168,14 @@ movementKernel(global int* worldSize, global int* writingToA,
   // update position
   creatureX[creature] = newX;
   creatureY[creature] = newY;
-  lastMoveSuccess[creature] = moveSuccessful;
+  lastActionSuccess[creature] = moveSuccessful;
 }
 
 
 // this kernel is called directly after movementKernel.
 // it removes creatures from the readWorld
 kernel void
-movementCleanupKernel(global int* worldSize, global int* writingToA,
+actionCleanupKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
   global int* pCreatureX, global int* pCreatureY)
 {
@@ -130,7 +200,7 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
   global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
   global float* screenSizeCenterScale, global int* screen,
-  global short* moveX, global short* moveY,
+  global char* selectX, global char* selectY,
   global float* creatureHue)
 {
   int index = get_global_id(0);
@@ -258,7 +328,7 @@ renderForegroundSimpleKernel(global int* worldSize, global int* writingToA,
   global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
   global float* screenSizeCenterScale, global int* screen,
-  global short* moveX, global short* moveY,
+  global char* selectX, global char* selectY,
   global float* creatureHue)
 {
   int index = get_global_id(0);
@@ -419,69 +489,6 @@ spreadFoodKernel(global int* worldSize, global float* worldFood,
 }
 
 kernel void
-updateCreatureKernel(global int* worldSize, global int* writingToA,
-  global int* worldA, global int* worldB,
-  global short* moveX, global short* moveY,
-  global short* lastMoveSuccess, global unsigned int* randomNumbers,
-  global int* creatureX, global int* creatureY, global short* creatureEnergy,
-  global float* worldFood)
-{
-  int creature = get_global_id(0);
-  global int* readWorld = writingToA[0] ? worldB : worldA;
-  global int* writeWorld = writingToA[0] ? worldA : worldB;
-  int x = creatureX[creature];
-  int y = creatureY[creature];
-
-  int worldIndex = posToIndexWrapped(x, y, worldSize);
-  creatureEnergy[creature] += worldFood[worldIndex] * 1024;
-  worldFood[worldIndex] = 0.0f;
-
-  if (creatureEnergy[creature] >= 1)
-  {
-    if (!lastMoveSuccess[creature])
-    {
-      int neighbors = numNeighbors(x, y, readWorld, worldSize);
-      short mx = moveX[creature];
-      short my = moveY[creature];
-
-      if (mx == 0 && my == 0)
-      {
-        if (neighbors <= 4)
-        {
-          int ranNum = getNextRandom(creature, randomNumbers) % 4;
-          switch (ranNum)
-          {
-            case 0: mx = -1;
-              break;
-            case 1: my = -1;
-              break;
-            case 2: mx = 1;
-              break;
-            case 3: my = 1;
-              break;
-            default: my = 1;
-              break;
-          }
-        }
-      }
-      else
-      {
-        mx = 0;
-        my = 0;
-      }
-
-      moveX[creature] = mx;
-      moveY[creature] = my;
-    }
-  }
-  else
-  {
-    moveX[creature] = 0;
-    moveY[creature] = 0;
-  }
-}
-
-kernel void
 flipWritingToAKernel(global int* writingToA)
 {
   writingToA[0] = writingToA[0] == 0 ? 1 : 0;
@@ -512,37 +519,37 @@ inline bool isCreature(int x, int y, global int* worldSize, global int* readWorl
 }
 
 // assuming x y already wrapped
-inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld, global short* moveX, global short* moveY)
+inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld, global char* selectX, global char* selectY)
 {
   int num = 0;
   //check top
   int xTop = x;
   int yTop = y - 1;
-  num += isMovingHere(xTop, yTop, x, y, worldSize, readWorld, moveX, moveY);
+  num += isMovingHere(xTop, yTop, x, y, worldSize, readWorld, selectX, selectY);
   // check bottom
   int xBottom = x;
   int yBottom = y + 1;
-  num += isMovingHere(xBottom, yBottom, x, y, worldSize, readWorld, moveX, moveY);
+  num += isMovingHere(xBottom, yBottom, x, y, worldSize, readWorld, selectX, selectY);
   // check left
   int xLeft = x - 1;
   int yLeft = y;
-  num += isMovingHere(xLeft, yLeft, x, y, worldSize, readWorld, moveX, moveY);
+  num += isMovingHere(xLeft, yLeft, x, y, worldSize, readWorld, selectX, selectY);
   // check right
   int xRight = x + 1;
   int yRight = y;
-  num += isMovingHere(xRight, yRight, x, y, worldSize, readWorld, moveX, moveY);
+  num += isMovingHere(xRight, yRight, x, y, worldSize, readWorld, selectX, selectY);
 
   return num;
 }
 
 // assuming xDest and yDest is already wrapped
-inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize, global int* readWorld, global short* moveX, global short* moveY)
+inline bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize, global int* readWorld, global char* selectX, global char* selectY)
 {
   int cell = getCell(xCell, yCell, worldSize, readWorld);
   if (cell >= 0)
   {
-    int creatureXDest = wrap(moveX[cell] + xCell, worldSize[0]);
-    int creatureYDest = wrap(moveY[cell] + yCell, worldSize[1]);
+    int creatureXDest = wrap(selectX[cell] + xCell, worldSize[0]);
+    int creatureYDest = wrap(selectY[cell] + yCell, worldSize[1]);
 
     return ((creatureXDest == xDest) && (creatureYDest == yDest));
   }
@@ -618,4 +625,10 @@ inline int rgbToBlue(int rgb){return rgb & 0xff;}
 inline int componentsToRgb(int red, int green, int blue)
 {
   return 0xff000000 | (red << 16) | (green << 8) | (blue);
+}
+
+inline void eat(int creature, int worldIndex, global float* creatureEnergy, global float* worldFood)
+{
+  creatureEnergy[creature] += worldFood[worldIndex] * 256;
+  worldFood[worldIndex] = 0.0f;
 }

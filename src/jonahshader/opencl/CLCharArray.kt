@@ -1,8 +1,8 @@
 package jonahshader.opencl
 
 import org.jocl.*
-
-class CLCharArray(val array: CharArray, context: cl_context, private val commandQueue: cl_command_queue) {
+// note. using byte array in java as it is 8 bits, matching opencl's 8 bit char
+class CLCharArray(val array: ByteArray, context: cl_context, private val commandQueue: cl_command_queue) {
     private val memory: cl_mem
     private val hostMemPointer: Pointer = Pointer.to(array)
     private val deviceMemPointer: Pointer
