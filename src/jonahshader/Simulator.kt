@@ -8,6 +8,16 @@ import java.util.*
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
     companion object {
         const val INIT_ENERGY = 128.toShort()
+
+        const val VISION_WIDTH_EXTEND = 2
+        const val VISION_HEIGHT_EXTEND = 2
+        const val VISION_LAYERS = 3// creatures, food, walls,
+        const val NN_INPUTS = (VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS
+        const val NN_OUTPUT = 7
+
+        val NN_CONFIG = intArrayOf(NN_INPUTS,
+                30, 30, // hidden layers
+                NN_OUTPUT)
     }
 
     private val clp = OpenCLProgram(openClFilename, arrayOf("actionKernel", "actionCleanupKernel",
