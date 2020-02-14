@@ -1,5 +1,6 @@
 package jonahshader
 
+import jonahshader.opencl.CLFloatArray
 import jonahshader.opencl.CLIntArray
 import jonahshader.opencl.OpenCLProgram
 import processing.core.PApplet
@@ -13,11 +14,17 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         const val VISION_HEIGHT_EXTEND = 2
         const val VISION_LAYERS = 3// creatures, food, walls,
         const val NN_INPUTS = (VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS
-        const val NN_OUTPUT = 7
+        // output consists of actions and parameters
+        // actions are: nothing, move, rotate, eat, place wall, damage, copy
+        // parameters are forward/backward, left/right, hue x, hue y
+        const val NN_OUTPUTS = 9
 
-        val NN_CONFIG = intArrayOf(NN_INPUTS,
-                30, 30, // hidden layers
-                NN_OUTPUT)
+        val NN_HIDDEN_LAYERS = intArrayOf(30, 30)
+
+//        val NN_CONFIG = intArrayOf(NN_INPUTS,
+//                30, 30, // hidden layers
+//                NN_OUTPUT)
+
     }
 
     private val clp = OpenCLProgram(openClFilename, arrayOf("actionKernel", "actionCleanupKernel",
@@ -48,8 +55,26 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val creatureEnergy = clp.createCLShortArray(numCreatures)
     private val creatureAction = clp.createCLCharArray(numCreatures)
     private val creatureDirection = clp.createCLCharArray(numCreatures)
+    private lateinit var creatureNN: CLFloatArray
+    private lateinit var creatureNNLayerOut: CLFloatArray
 
     init {
+        var singleNNSize = 0
+        // + 1 for bias neuron, + 1 for recursive weight, + 1 for recursive value storage
+        if (NN_HIDDEN_LAYERS.isNotEmpty()) {
+            singleNNSize += (NN_INPUTS + 3) * NN_HIDDEN_LAYERS[0]
+            for (i in 0 until NN_HIDDEN_LAYERS.size - 1) {
+                singleNNSize += (NN_HIDDEN_LAYERS[i] + 3) * NN_HIDDEN_LAYERS[i]
+            }
+            singleNNSize += (NN_HIDDEN_LAYERS.last() + 3) * NN_OUTPUTS
+        }
+        else {
+            singleNNSize += (NN_INPUTS + 3) * NN_OUTPUTS
+        }
+        println("Number of floats in nn: $singleNNSize")
+        // now that we have the size of the nn calculated, make the CLFloatArray
+//        creatureNN = clp.createCLFloatArray(numCreatures * singleNNSize)
+
         initWorld()
 
         // register data arrays with kernels

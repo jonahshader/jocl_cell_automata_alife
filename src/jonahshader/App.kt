@@ -37,8 +37,8 @@ class App : PApplet() {
     private lateinit var sim: Simulator
 
     override fun settings() {
-//        size(SCREEN_WIDTH, SCREEN_HEIGHT)
-        fullScreen()
+        size(SCREEN_WIDTH, SCREEN_HEIGHT)
+//        fullScreen()
         noSmooth()
 //        noAlpha()
 

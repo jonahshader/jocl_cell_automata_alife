@@ -21,9 +21,11 @@ typedef enum {
 #define HUE_SPACING (2.09439510239319549231f)
 
 // uncomment one option
-// #define ANIMATION_STEPPING_ENABLED
+#define ANIMATION_STEPPING_ENABLED
 
-#define ADD_FOOD_CHANCE 64
+// one out of every ADD_FOOD_CHANCE will gain food
+// when the addFoodKernel runs
+#define ADD_FOOD_CHANCE 256
 
 int wrap(int value, int range);
 // int indexToX(int index, global int* worldSize);
@@ -47,7 +49,7 @@ int rgbToRed(int rgb);
 int rgbToGreen(int rgb);
 int rgbToBlue(int rgb);
 int componentsToRgb(int red, int green, int blue);
-void eat(int creature, int foodIndex, global float* creatureEnergy, global float* food);
+void eat(int creature, int foodIndex, global short* creatureEnergy, global float* food);
 
 
 kernel void
@@ -67,22 +69,41 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   int worldIndex = posToIndexWrapped(x, y, worldSize);
 
 
+  selectX[creature] = 0;
+  selectY[creature] = 0;
   if (creatureEnergy[creature] >= 1) // if creature is alive,
   {
-    selectX[creature] = 0;
-    selectY[creature] = 0;
     // determine next action
     int nextAction = getNextRandom(creature, randomNumbers) % NUM_ACTIONS;
+    bool nextDirection = (getNextRandom(creature, randomNumbers) % 2) * 2 - 1;
     switch (nextAction)
     {
       case MOVE:
+        switch (creatureDirection[creature])
+        {
+          case 0: // down
+            selectY[creature] = 1;
+            break;
+          case 1: // right
+            selectX[creature] = 1;
+            break;
+          case 2: // up
+            selectY[creature] = -1;
+            break;
+          case 3: // left
+            selectX[creature] = -1;
+            break;
+          default:
+            break;
+        }
         break;
       case ROTATE:
+        creatureDirection[creature] = wrap(creatureDirection[creature] + nextDirection, 4);
         break;
       case EAT:
+        eat(creature, worldIndex, creatureEnergy, worldFood);
         break;
       case PLACE_WALL:
-
         break;
       case DAMAGE:
         break;
@@ -92,12 +113,6 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
       case NOTHING:
         break;
     }
-    eat(creature, worldIndex, creatureEnergy, worldFood);
-  }
-  else
-  {
-    selectX[creature] = 0;
-    selectY[creature] = 0;
   }
 }
 
@@ -627,7 +642,7 @@ inline int componentsToRgb(int red, int green, int blue)
   return 0xff000000 | (red << 16) | (green << 8) | (blue);
 }
 
-inline void eat(int creature, int worldIndex, global float* creatureEnergy, global float* worldFood)
+inline void eat(int creature, int worldIndex, global short* creatureEnergy, global float* worldFood)
 {
   creatureEnergy[creature] += worldFood[worldIndex] * 256;
   worldFood[worldIndex] = 0.0f;
