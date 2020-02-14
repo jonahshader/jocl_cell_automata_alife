@@ -12,8 +12,8 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 640
         const val SCREEN_HEIGHT = 480
 
-        const val WORLD_WIDTH = 8192/(16)
-        const val WORLD_HEIGHT = 8192/(16)
+        const val WORLD_WIDTH = 8192/(128)
+        const val WORLD_HEIGHT = 8192/(128)
     }
 
     private val noDrawToggleKey = 'o'
@@ -51,7 +51,7 @@ class App : PApplet() {
         updatePixels()
 
         val seed = (Math.random() * Long.MAX_VALUE).toLong()
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, ((WORLD_WIDTH * WORLD_HEIGHT) / 2.0).toInt(), "main_cl_program.cl", seed)
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, ((WORLD_WIDTH * WORLD_HEIGHT) / 16.0).toInt(), "main_cl_program.cl", seed)
         println("seed: $seed")
     }
 
@@ -69,6 +69,9 @@ class App : PApplet() {
 
         xCam += xCamVel / zoom
         yCam += yCamVel / zoom
+
+        xCam = wrap(xCam, WORLD_WIDTH.toDouble())
+        yCam = wrap(yCam, WORLD_HEIGHT.toDouble())
 
 
         val framesPerIteration = (1 / iterationsPerFrame).toInt()
@@ -94,7 +97,6 @@ class App : PApplet() {
 //            progress *= 5f
 //            progress = (1f - cos(PI*progress))/2f
             sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), progress)
-            color(0.5f)
         }
 
         updatePixels()

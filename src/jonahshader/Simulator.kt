@@ -131,6 +131,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureEnergy.registerAndSendArgument(updateCreatureKernel, i++)
         worldFood.registerAndSendArgument(updateCreatureKernel, i++)
         creatureAction.registerAndSendArgument(updateCreatureKernel, i++)
+        creatureDirection.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
@@ -170,6 +171,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureHue.copyToDevice()
         creatureEnergy.copyToDevice()
         creatureAction.copyToDevice()
+        creatureDirection.copyToDevice()
     }
 
     private fun initWorld() {
@@ -249,11 +251,12 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screenSizeCenterScale.array[4] = zoom
         screenSizeCenterScale.array[5] = progress
         screenSizeCenterScale.copyToDevice()
-        clp.executeKernel("renderBackgroundKernel", graphics.width * graphics.height.toLong())
+        clp.executeKernel("renderBackgroundKernel", screen.array.size.toLong())
+        clp.waitForCL()
         if (zoom > 8) {
-            clp.executeKernel("renderForegroundDetailedKernel", (graphics.width * graphics.height).toLong())
+            clp.executeKernel("renderForegroundDetailedKernel", screen.array.size.toLong())
         } else {
-            clp.executeKernel("renderForegroundSimpleKernel", (graphics.width * graphics.height).toLong())
+            clp.executeKernel("renderForegroundSimpleKernel", screen.array.size.toLong())
         }
 
         clp.waitForCL()

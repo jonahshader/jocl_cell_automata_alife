@@ -56,7 +56,7 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   global char* selectX, global char* selectY,
   global char* lastActionSuccess, global unsigned int* randomNumbers,
   global int* creatureX, global int* creatureY, global short* creatureEnergy,
-  global float* worldFood, global char* creatureAction)
+  global float* worldFood, global char* creatureAction, global char* creatureDirection)
 {
   int creature = get_global_id(0);
   global int* readWorld = writingToA[0] ? worldB : worldA;
@@ -72,7 +72,7 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     selectX[creature] = 0;
     selectY[creature] = 0;
     // determine next action
-    int nextAction = getNextRandom(creature, randomNumbers) % NUM_ACTIONS
+    int nextAction = getNextRandom(creature, randomNumbers) % NUM_ACTIONS;
     switch (nextAction)
     {
       case MOVE:
