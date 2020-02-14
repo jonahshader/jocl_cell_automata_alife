@@ -10,6 +10,10 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     companion object {
         const val INIT_ENERGY = 128.toShort()
 
+
+        // TODO: completely rewrite the neural network code to read rgb instead of all of these separate layers
+        // should save size too
+
         const val VISION_WIDTH_EXTEND = 2
         const val VISION_HEIGHT_EXTEND = 2
         const val VISION_LAYERS = 3// creatures, food, walls,
