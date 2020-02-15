@@ -12,8 +12,8 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 640
         const val SCREEN_HEIGHT = 480
 
-        const val WORLD_WIDTH = 8192/(128)
-        const val WORLD_HEIGHT = 8192/(128)
+        const val WORLD_WIDTH = 8192 * 2
+        const val WORLD_HEIGHT = 8192
     }
 
     private val noDrawToggleKey = 'o'
@@ -31,17 +31,24 @@ class App : PApplet() {
     private var xCamVel = 0.0
     private var yCamVel = 0.0
     private var zoomVel = 0.0
+    private var spectating = false
 
     private var iterationsPerFrame = 0.125f
 
     private lateinit var sim: Simulator
 
     override fun settings() {
-        size(SCREEN_WIDTH, SCREEN_HEIGHT)
-//        fullScreen()
+//        size(SCREEN_WIDTH, SCREEN_HEIGHT)
+        fullScreen()
         noSmooth()
 //        noAlpha()
 
+    }
+
+    override fun exit() {
+        sim.dispose()
+        println("exiting...exit")
+        super.exit()
     }
 
     override fun setup() {
@@ -51,18 +58,18 @@ class App : PApplet() {
         updatePixels()
 
         val seed = (Math.random() * Long.MAX_VALUE).toLong()
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, ((WORLD_WIDTH * WORLD_HEIGHT) / 16.0).toInt(), "main_cl_program.cl", seed)
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, ((WORLD_WIDTH * WORLD_HEIGHT) / 64.0).toInt(), "main_cl_program.cl", seed)
         println("seed: $seed")
     }
 
     override fun draw() {
-        if (upPressed) yCamVel -= 0.25
-        if (downPressed) yCamVel += 0.25
-        if (leftPressed) xCamVel -= 0.25
-        if (rightPressed) xCamVel += 0.25
+        if (upPressed) yCamVel -= 0.5
+        if (downPressed) yCamVel += 0.5
+        if (leftPressed) xCamVel -= 0.5
+        if (rightPressed) xCamVel += 0.5
 
-        xCamVel = friction(xCamVel, 0.125)
-        yCamVel = friction(yCamVel, 0.125)
+        xCamVel = friction(xCamVel, 0.25)
+        yCamVel = friction(yCamVel, 0.25)
 
         xCamVel = velCap(xCamVel, 4.0)
         yCamVel = velCap(yCamVel, 4.0)
@@ -87,7 +94,12 @@ class App : PApplet() {
 
         loadPixels()
         if (iterationsPerFrame >= 1) {
-            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), 1f)
+            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), 1f, spectating)
+            if (spectating) {
+                xCam = sim.screenSizeCenterScale.array[2].toDouble()
+                yCam = sim.screenSizeCenterScale.array[3].toDouble()
+            }
+
         } else {
             var progress = ((frameCount % framesPerIteration) / framesPerIteration.toFloat()) + iterationsPerFrame
 //            progress = min(progress, 1f).pow(0.25f)
@@ -96,7 +108,11 @@ class App : PApplet() {
 //            progress = tanh(progress * 10) / tanh(10f)
 //            progress *= 5f
 //            progress = (1f - cos(PI*progress))/2f
-            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), progress)
+            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), progress, spectating)
+            if (spectating) {
+                xCam = sim.screenSizeCenterScale.array[2].toDouble()
+                yCam = sim.screenSizeCenterScale.array[3].toDouble()
+            }
         }
 
         updatePixels()
@@ -124,6 +140,7 @@ class App : PApplet() {
             ']' -> iterationsPerFrame *= 2f
             '[' -> iterationsPerFrame *= 0.5f
             '`' -> saveFrame("screenshot.png")
+            'f' -> spectating = !spectating
         }
     }
 

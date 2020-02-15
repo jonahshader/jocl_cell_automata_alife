@@ -6,7 +6,6 @@ actions are: do nothing, move forward/backward, rotate,
 eat, place wall, harm/remove wall, copy genetics,
 
 */
-#define NUM_ACTIONS (7)
 
 typedef enum {
   NOTHING,
@@ -15,13 +14,14 @@ typedef enum {
   EAT,
   PLACE_WALL,
   DAMAGE,
-  COPY
+  COPY,
+  NUM_ACTIONS
 } Action;
 
 #define HUE_SPACING (2.09439510239319549231f)
 
-// uncomment one option
-#define ANIMATION_STEPPING_ENABLED
+// uncomment option to enable
+// #define ANIMATION_STEPPING_ENABLED
 
 // one out of every ADD_FOOD_CHANCE will gain food
 // when the addFoodKernel runs
@@ -32,7 +32,7 @@ int wrap(int value, int range);
 // int indexToY(int index, global int* worldSize);
 int posToIndexWrapped(int x, int y, global int* worldSize);
 bool isCreature(int x, int y, global int* worldSize, global int* readWorld);
-int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld,
+int numCreaturesSelectingHere(int x, int y, global int* worldSize, global int* readWorld,
   global char* selectX, global char* selectY);
 bool isMovingHere(int xCell, int yCell, int xDest, int yDest, global int* worldSize,
   global int* readWorld, global char* selectX, global char* selectY);
@@ -50,6 +50,9 @@ int rgbToGreen(int rgb);
 int rgbToBlue(int rgb);
 int componentsToRgb(int red, int green, int blue);
 void eat(int creature, int foodIndex, global short* creatureEnergy, global float* food);
+void updateCreatureSelection(int creature, global char* creatureDirection, global char* selectX, global char* selectY);
+// works on x or y
+float getCreaturePosInterp(int creature, global int* pCreatureLoc, global int* creatureLoc, float progress, int axisSize);
 
 
 kernel void
@@ -75,27 +78,12 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   {
     // determine next action
     int nextAction = getNextRandom(creature, randomNumbers) % NUM_ACTIONS;
-    bool nextDirection = (getNextRandom(creature, randomNumbers) % 2) * 2 - 1;
+    creatureAction[creature] = nextAction;
+    int nextDirection = (getNextRandom(creature, randomNumbers) % 2) * 2 - 1;
     switch (nextAction)
     {
       case MOVE:
-        switch (creatureDirection[creature])
-        {
-          case 0: // down
-            selectY[creature] = 1;
-            break;
-          case 1: // right
-            selectX[creature] = 1;
-            break;
-          case 2: // up
-            selectY[creature] = -1;
-            break;
-          case 3: // left
-            selectX[creature] = -1;
-            break;
-          default:
-            break;
-        }
+        updateCreatureSelection(creature, creatureDirection, selectX, selectY);
         break;
       case ROTATE:
         creatureDirection[creature] = wrap(creatureDirection[creature] + nextDirection, 4);
@@ -104,15 +92,23 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
         eat(creature, worldIndex, creatureEnergy, worldFood);
         break;
       case PLACE_WALL:
+        updateCreatureSelection(creature, creatureDirection, selectX, selectY);
         break;
       case DAMAGE:
+        updateCreatureSelection(creature, creatureDirection, selectX, selectY);
         break;
       case COPY:
+        updateCreatureSelection(creature, creatureDirection, selectX, selectY);
         break;
       default:
       case NOTHING:
+        // :D
         break;
     }
+  }
+  else
+  {
+    creatureAction[creature] = NOTHING;
   }
 }
 
@@ -123,7 +119,8 @@ actionKernel(global int* worldSize, global int* writingToA,
   global int* worldA, global int* worldB,
   global char* selectX, global char* selectY, global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
-  global char* lastActionSuccess, global short* creatureEnergy)
+  global char* lastActionSuccess, global short* creatureEnergy, global char* creatureAction,
+  global char* worldObjects)
 {
   int creature = get_global_id(0);
   //copy current pos to previous pos
@@ -150,32 +147,65 @@ actionKernel(global int* worldSize, global int* writingToA,
   int newX = cx;
   int newY = cy;
 
-  bool moveSuccessful = false;
+  bool actionSuccessful = false;
 
-  // if creature is attempting to move,
+  // if creature is attempting to do something
   if (selectX[creature] != 0 || selectY[creature] != 0)
   {
     // check position if there is a creature there already
-    int moveToX = wrap(cx + selectX[creature], worldSize[0]);
-    int moveToY = wrap(cy + selectY[creature], worldSize[1]);
+    int selectPosX = wrap(cx + selectX[creature], worldSize[0]);
+    int selectPosY = wrap(cy + selectY[creature], worldSize[1]);
 
-    int cellAtPos = readWorld[moveToX + moveToY * worldSize[0]];
+    int selectIndex = selectPosX + selectPosY * worldSize[0];
+
+    int cellAtPos = readWorld[selectIndex];
+    int objAtPos = worldObjects[selectIndex];
 
     // if there is not a creature at the desired spot,
-    if (cellAtPos == -1)
+    // check 3 neighbors to see if anyone else is trying to select there
+    int numSelectingHere = numCreaturesSelectingHere(selectPosX, selectPosY, worldSize, readWorld, selectX, selectY);
+    if (numSelectingHere == 1)
     {
-      // check 3 neighbors to see if anyone else is trying to go there
-      // if not, go there, set lastActionSuccess to true
-      // else, set lastActionSuccess to false
-      int numMovingHere = numCreaturesMovingHere(moveToX, moveToY, worldSize, readWorld, selectX, selectY);
-      if (numMovingHere == 1)
+      switch (creatureAction[creature])
       {
-        // we can move successfully because we are the only one trying to go there
-        // lastActionSuccess[creature] = true;
-        newX = moveToX;
-        newY = moveToY;
-        moveSuccessful = true;
-        creatureEnergy[creature]--;
+        case MOVE:
+          if (objAtPos == 0 && cellAtPos == -1)
+          {
+            newX = selectPosX;
+            newY = selectPosY;
+            actionSuccessful = true;
+            creatureEnergy[creature]--;
+          }
+          break;
+        case PLACE_WALL:
+          if (objAtPos == 0 && cellAtPos == -1)
+          {
+            worldObjects[selectIndex] = 1; // for wall
+            actionSuccessful = true;
+            creatureEnergy[creature]--;
+          }
+          break;
+        case DAMAGE:
+          if (cellAtPos == -1)
+          {
+            worldObjects[selectIndex] = 0; // remove whatever is there
+            actionSuccessful = true;
+            creatureEnergy[creature]--;
+          }
+
+          break;
+        case COPY:
+          if (cellAtPos != -1 && creatureEnergy[creature] > 1)
+          {
+            creatureEnergy[cellAtPos] += creatureEnergy[creature] / 2;
+            creatureEnergy[creature] /= 2;
+            actionSuccessful = true;
+            creatureEnergy[creature]--;
+          }
+          break;
+        default:
+          actionSuccessful = true;
+          break;
       }
     }
   }
@@ -183,7 +213,7 @@ actionKernel(global int* worldSize, global int* writingToA,
   // update position
   creatureX[creature] = newX;
   creatureY[creature] = newY;
-  lastActionSuccess[creature] = moveSuccessful;
+  lastActionSuccess[creature] = actionSuccessful;
 }
 
 
@@ -216,7 +246,7 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
   global int* pCreatureX, global int* pCreatureY,
   global float* screenSizeCenterScale, global int* screen,
   global char* selectX, global char* selectY,
-  global float* creatureHue)
+  global float* creatureHue, global short* creatureEnergy)
 {
   int index = get_global_id(0);
   int screenX = index % ((int)screenSizeCenterScale[0]);
@@ -300,10 +330,20 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
 
     // renderAsSquares means the camera is zoomed out too far for circles to make screenSizeCenterScale
     // so they will just be rendered as squares
-    float hue = creatureHue[cell];
-    red = hueToRed(hue) * 255.0f;
-    green = hueToGreen(hue) * 255.0f;
-    blue = hueToBlue(hue) * 255.0f;
+    if (creatureEnergy[cell] == 0)
+    {
+      red = 180;
+      green = 200;
+      blue = 200;
+    }
+    else
+    {
+      float hue = creatureHue[cell];
+      red = hueToRed(hue) * 255.0f;
+      green = hueToGreen(hue) * 255.0f;
+      blue = hueToBlue(hue) * 255.0f;
+    }
+
 
     float distToCreatureCenter = sqrt(dx * dx + dy * dy);
     float brightness;
@@ -344,7 +384,7 @@ renderForegroundSimpleKernel(global int* worldSize, global int* writingToA,
   global int* pCreatureX, global int* pCreatureY,
   global float* screenSizeCenterScale, global int* screen,
   global char* selectX, global char* selectY,
-  global float* creatureHue)
+  global float* creatureHue, global short* creatureEnergy)
 {
   int index = get_global_id(0);
   int screenX = index % ((int)screenSizeCenterScale[0]);
@@ -427,10 +467,19 @@ renderForegroundSimpleKernel(global int* worldSize, global int* writingToA,
     bool renderSquare = worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax;
     if (renderSquare)
     {
-      float hue = creatureHue[cell];
-      red = hueToRed(hue) * 255.0f;
-      green = hueToGreen(hue) * 255.0f;
-      blue = hueToBlue(hue) * 255.0f;
+      if (creatureEnergy[cell] == 0)
+      {
+        red = 180;
+        green = 200;
+        blue = 200;
+      }
+      else
+      {
+        float hue = creatureHue[cell];
+        red = hueToRed(hue) * 255.0f;
+        green = hueToGreen(hue) * 255.0f;
+        blue = hueToBlue(hue) * 255.0f;
+      }
       screen[index] = componentsToRgb(red, green, blue);
     }
   }
@@ -439,7 +488,7 @@ renderForegroundSimpleKernel(global int* worldSize, global int* writingToA,
 kernel void
 renderBackgroundKernel(global int* worldSize,
   global float* screenSizeCenterScale,
-  global float* worldFood, global int* screen)
+  global float* worldFood, global char* worldObjects, global int* screen)
 {
   int index = get_global_id(0);
 
@@ -458,11 +507,19 @@ renderBackgroundKernel(global int* worldSize,
   int worldX = wrap(floor(worldXF + .5f), worldSize[0]);
   int worldY = wrap(floor(worldYF + .5f), worldSize[1]);
 
-  float foodValue = worldFood[posToIndexWrapped(worldX, worldY, worldSize)];
-  int green = foodValue * 255;
-  green = min(255, green);
-  screen[index] = componentsToRgb(0, green, 0);
-
+  int worldIndex = posToIndexWrapped(worldX, worldY, worldSize);
+  float foodValue = worldFood[worldIndex];
+  bool drawWall = worldObjects[worldIndex];
+  if (drawWall)
+  {
+    screen[index] = componentsToRgb(100, 90, 90);
+  }
+  else
+  {
+    int green = foodValue * 255;
+    green = min(255, green);
+    screen[index] = componentsToRgb(0, green, 0);
+  }
 }
 
 // runs per cell
@@ -509,6 +566,17 @@ flipWritingToAKernel(global int* writingToA)
   writingToA[0] = writingToA[0] == 0 ? 1 : 0;
 }
 
+kernel void
+spectateCreatureKernel(global int* worldSize, global int* creatureX, global int* creatureY,
+  global int* pCreatureX, global int* pCreatureY,
+  global int* creatureToSpec, global float* screenSizeCenterScale)
+{
+  int c = creatureToSpec[0];
+  float prog = screenSizeCenterScale[5];
+  screenSizeCenterScale[2] = getCreaturePosInterp(c, pCreatureX, creatureX, prog, worldSize[0]);
+  screenSizeCenterScale[3] = getCreaturePosInterp(c, pCreatureY, creatureY, prog, worldSize[1]);
+}
+
 inline int wrap(int value, int range)
 {
   int out = value % range;
@@ -534,7 +602,7 @@ inline bool isCreature(int x, int y, global int* worldSize, global int* readWorl
 }
 
 // assuming x y already wrapped
-inline int numCreaturesMovingHere(int x, int y, global int* worldSize, global int* readWorld, global char* selectX, global char* selectY)
+inline int numCreaturesSelectingHere(int x, int y, global int* worldSize, global int* readWorld, global char* selectX, global char* selectY)
 {
   int num = 0;
   //check top
@@ -644,6 +712,41 @@ inline int componentsToRgb(int red, int green, int blue)
 
 inline void eat(int creature, int worldIndex, global short* creatureEnergy, global float* worldFood)
 {
-  creatureEnergy[creature] += worldFood[worldIndex] * 256;
+  creatureEnergy[creature] += max((int)(worldFood[worldIndex] * 256), 0);
   worldFood[worldIndex] = 0.0f;
+}
+
+inline void updateCreatureSelection(int creature, global char* creatureDirection, global char* selectX, global char* selectY)
+{
+  switch (creatureDirection[creature])
+  {
+    case 0: // down
+      selectY[creature] = 1;
+      break;
+    case 1: // right
+      selectX[creature] = 1;
+      break;
+    case 2: // up
+      selectY[creature] = -1;
+      break;
+    case 3: // left
+      selectX[creature] = -1;
+      break;
+    default:
+      break;
+  }
+}
+
+inline float getCreaturePosInterp(int creature, global int* pCreatureLoc, global int* creatureLoc, float progress, int axisSize)
+{
+  int pc = pCreatureLoc[creature];
+  int c = creatureLoc[creature];
+
+  if (abs(pc - c) > 1)
+  {
+    if (pc < c) pc += axisSize;
+    else        c  += axisSize;
+  }
+
+  return interpolate(pc, c, progress);
 }

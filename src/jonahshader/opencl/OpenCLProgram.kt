@@ -104,4 +104,9 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
         // Build the program
         CL.clBuildProgram(program, 0, null, null, null, null)
     }
+
+    fun dispose() {
+//        CL.close
+        waitForCL()
+    }
 }

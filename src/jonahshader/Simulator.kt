@@ -11,12 +11,9 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         const val INIT_ENERGY = 128.toShort()
 
 
-        // TODO: completely rewrite the neural network code to read rgb instead of all of these separate layers
-        // should save size too
-
         const val VISION_WIDTH_EXTEND = 2
         const val VISION_HEIGHT_EXTEND = 2
-        const val VISION_LAYERS = 3// creatures, food, walls,
+        const val VISION_LAYERS = 3// RGB
         const val NN_INPUTS = (VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS
         // output consists of actions and parameters
         // actions are: nothing, move, rotate, eat, place wall, damage, copy
@@ -28,12 +25,11 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 //        val NN_CONFIG = intArrayOf(NN_INPUTS,
 //                30, 30, // hidden layers
 //                NN_OUTPUT)
-
     }
 
     private val clp = OpenCLProgram(openClFilename, arrayOf("actionKernel", "actionCleanupKernel",
             "renderForegroundSimpleKernel", "renderForegroundDetailedKernel", "updateCreatureKernel", "addFoodKernel",
-            "spreadFoodKernel", "flipWritingToAKernel", "renderBackgroundKernel"))
+            "spreadFoodKernel", "flipWritingToAKernel", "renderBackgroundKernel", "spectateCreatureKernel"))
     private var currentTick = 0L
     private var ran = Random(seed)
 
@@ -49,7 +45,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val pCreatureX = clp.createCLIntArray(numCreatures)
     private val pCreatureY = clp.createCLIntArray(numCreatures)
     private val lastActionSuccess = clp.createCLCharArray(numCreatures)
-    private val screenSizeCenterScale = clp.createCLFloatArray(6)
+    val screenSizeCenterScale = clp.createCLFloatArray(6)
     private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
     private val randomNumbers = clp.createCLIntArray(worldWidth * worldHeight)
     private val worldObjects = clp.createCLCharArray(worldWidth * worldHeight)
@@ -61,6 +57,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val creatureDirection = clp.createCLCharArray(numCreatures)
     private lateinit var creatureNN: CLFloatArray
     private lateinit var creatureNNLayerOut: CLFloatArray
+    private val creatureToSpec = clp.createCLIntArray(1)
 
     init {
         var singleNNSize = 0
@@ -96,6 +93,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         pCreatureY.registerAndSendArgument(actionKernel, i++)
         lastActionSuccess.registerAndSendArgument(actionKernel, i++)
         creatureEnergy.registerAndSendArgument(actionKernel, i++)
+        creatureAction.registerAndSendArgument(actionKernel, i++)
+        worldObjects.registerAndSendArgument(actionKernel, i++)
 
         val actionCleanupKernel = clp.getKernel("actionCleanupKernel")
         i = 0
@@ -121,6 +120,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         selectX.registerAndSendArgument(renderForegroundSimpleKernel, i++)
         selectY.registerAndSendArgument(renderForegroundSimpleKernel, i++)
         creatureHue.registerAndSendArgument(renderForegroundSimpleKernel, i++)
+        creatureEnergy.registerAndSendArgument(renderForegroundSimpleKernel, i++)
 
         val renderForegroundDetailedKernel = clp.getKernel("renderForegroundDetailedKernel")
         i = 0
@@ -137,12 +137,14 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         selectX.registerAndSendArgument(renderForegroundDetailedKernel, i++)
         selectY.registerAndSendArgument(renderForegroundDetailedKernel, i++)
         creatureHue.registerAndSendArgument(renderForegroundDetailedKernel, i++)
+        creatureEnergy.registerAndSendArgument(renderForegroundDetailedKernel, i++)
 
         val renderBackgroundKernel = clp.getKernel("renderBackgroundKernel")
         i = 0
         worldSize.registerAndSendArgument(renderBackgroundKernel, i++)
         screenSizeCenterScale.registerAndSendArgument(renderBackgroundKernel, i++)
         worldFood.registerAndSendArgument(renderBackgroundKernel, i++)
+        worldObjects.registerAndSendArgument(renderBackgroundKernel, i++)
         screen.registerAndSendArgument(renderBackgroundKernel, i++)
 
         val updateCreatureKernel = clp.getKernel("updateCreatureKernel")
@@ -180,6 +182,16 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         i = 0
         writingToA.registerAndSendArgument(flipWritingToAKernel, i++)
 
+        val spectateCreatureKernel = clp.getKernel("spectateCreatureKernel")
+        i = 0
+        worldSize.registerAndSendArgument(spectateCreatureKernel, i++)
+        creatureX.registerAndSendArgument(spectateCreatureKernel, i++)
+        creatureY.registerAndSendArgument(spectateCreatureKernel, i++)
+        pCreatureX.registerAndSendArgument(spectateCreatureKernel, i++)
+        pCreatureY.registerAndSendArgument(spectateCreatureKernel, i++)
+        creatureToSpec.registerAndSendArgument(spectateCreatureKernel, i++)
+        screenSizeCenterScale.registerAndSendArgument(spectateCreatureKernel, i++)
+
         worldSize.copyToDevice()
         writingToA.copyToDevice()
         worldA.copyToDevice()
@@ -201,6 +213,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureEnergy.copyToDevice()
         creatureAction.copyToDevice()
         creatureDirection.copyToDevice()
+        creatureToSpec.copyToDevice()
     }
 
     private fun initWorld() {
@@ -273,13 +286,18 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         currentTick++
     }
 
-    fun render(xCenter: Float, yCenter: Float, zoom: Float, progress: Float) {
+    fun render(xCenter: Float, yCenter: Float, zoom: Float, progress: Float, spectate: Boolean) {
         assert(zoom >= 1)
         screenSizeCenterScale.array[2] = xCenter
         screenSizeCenterScale.array[3] = yCenter
         screenSizeCenterScale.array[4] = zoom
         screenSizeCenterScale.array[5] = progress
         screenSizeCenterScale.copyToDevice()
+        if (spectate) {
+            clp.executeKernel("spectateCreatureKernel", 1)
+            screenSizeCenterScale.copyFromDevice()
+        }
+
         clp.executeKernel("renderBackgroundKernel", screen.array.size.toLong())
         clp.waitForCL()
         if (zoom > 8) {
@@ -291,5 +309,9 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         clp.waitForCL()
         screen.copyFromDevice()
         clp.waitForCL()
+    }
+
+    fun dispose() {
+        clp.dispose()
     }
 }
