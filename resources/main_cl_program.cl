@@ -64,6 +64,7 @@ void updateCreatureSelection(int creature, global char* creatureDirection, globa
 // works on x or y
 float getCreaturePosInterp(int creature, global int* pCreatureLoc, global int* creatureLoc, float progress, int axisSize);
 
+void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn);
 
 kernel void
 updateCreatureKernel(global int* worldSize, global int* writingToA,
@@ -71,7 +72,10 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   global char* selectX, global char* selectY,
   global char* lastActionSuccess, global unsigned int* randomNumbers,
   global int* creatureX, global int* creatureY, global short* creatureEnergy,
-  global float* worldFood, global char* creatureAction, global char* creatureDirection)
+  global float* worldFood, global char* creatureAction, global char* creatureDirection,
+  global float* creaturenn,
+  global int* nnStructure // note: nnStructure's first element is the number of layers (n). the following n elements are the sizes of each layer (without bias neuron and all that stuff)
+  )
 {
   int creature = get_global_id(0);
   global int* readWorld = writingToA[0] ? worldB : worldA;
@@ -809,4 +813,21 @@ inline float getCreaturePosInterp(int creature, global int* pCreatureLoc, global
   }
 
   return interpolate(pc, c, progress);
+}
+
+//TODO: need somewhere to store input values for neural network
+inline void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn)
+{
+  int nnSize = 0;
+  for (int i = 0; i < nnStructure[0] - 1; i++)
+  {
+    nnSize += (nnStructure[i] + 3) * nnStructure[i + 1];
+  }
+  int nnStartIndex = creature * nnSize;
+
+  // loop through all layers
+  for (int i = 0; i < nnStructure[0] - 1; i++)
+  {
+    float sum = 0.0f;
+  }
 }
