@@ -12,8 +12,8 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 1280
         const val SCREEN_HEIGHT = 720
 
-        const val WORLD_WIDTH = 8192 / 4
-        const val WORLD_HEIGHT = 8192 / 4
+        const val WORLD_WIDTH = 8192 / 16
+        const val WORLD_HEIGHT = 8192 / 16
     }
 
     private val noDrawToggleKey = 'o'

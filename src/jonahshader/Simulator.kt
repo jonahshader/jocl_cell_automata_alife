@@ -57,8 +57,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val creatureEnergy = clp.createCLShortArray(numCreatures)
     private val creatureAction = clp.createCLCharArray(numCreatures)
     private val creatureDirection = clp.createCLCharArray(numCreatures)
-    private lateinit var creatureNN: CLFloatArray
-    private lateinit var creatureNNLayerOut: CLFloatArray
+    private var creatureNN: CLFloatArray
     private val creatureToSpec = clp.createCLIntArray(1)
 
     init {
@@ -75,6 +74,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             singleNNSize += (NN_INPUTS + 3) * NN_OUTPUTS
         }
         println("Number of floats in nn: $singleNNSize")
+        creatureNN = clp.createCLFloatArray(singleNNSize * numCreatures)
         // now that we have the size of the nn calculated, make the CLFloatArray
 //        creatureNN = clp.createCLFloatArray(numCreatures * singleNNSize)
 

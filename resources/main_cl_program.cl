@@ -765,7 +765,7 @@ inline void updateCreatureSelection(int creature, global char* creatureDirection
   }
 }
 
-inline int rotatePointGetX(int xOrigin, int yOrigin, int xPoint, int yPoint, char direction)
+inline int rotatePointX(int xOrigin, int yOrigin, int xPoint, int yPoint, char direction)
 {
   switch (direction)
   {
@@ -773,11 +773,27 @@ inline int rotatePointGetX(int xOrigin, int yOrigin, int xPoint, int yPoint, cha
     case 0: // down
       return xPoint;
     case 1: // right
-      return yPoint; // wrong TODO: fix
+      return xOrigin + (yPoint - yOrigin);
     case 2: // up
       return xOrigin - (xPoint - xOrigin);
     case 3: // left
-      return yOrigin - (yPoint - yOrigin); // wrong TODO: fix
+      return xOrigin - (yPoint - yOrigin);
+  }
+}
+
+inline int rotatePointY(int xOrigin, int yOrigin, int xPoint, int yPoint, char direction)
+{
+  switch (direction)
+  {
+    default:
+    case 0:
+      return yPoint;
+    case 1:
+      return yOrigin + (xPoint - xOrigin);
+    case 2:
+      return yOrigin - (yPoint - yOrigin);
+    case 3:
+      return yOrigin - (xPoint - xOrigin);
   }
 }
 
