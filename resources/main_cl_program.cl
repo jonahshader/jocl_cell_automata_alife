@@ -1,12 +1,9 @@
-#define WHITE (0xffffffff)
-#define BLACK (0xff000000)
+
 
 /*
 actions are: do nothing, move forward/backward, rotate,
 eat, place wall, harm/remove wall, copy genetics,
-
 */
-
 typedef enum {
   NOTHING,
   MOVE,
@@ -18,14 +15,27 @@ typedef enum {
   NUM_ACTIONS
 } Action;
 
-#define HUE_SPACING (2.09439510239319549231f)
+
 
 // uncomment option to enable
 // #define ANIMATION_STEPPING_ENABLED
 
 // one out of every ADD_FOOD_CHANCE will gain food
 // when the addFoodKernel runs
-#define ADD_FOOD_CHANCE 256
+#define ADD_FOOD_CHANCE (256)
+
+#define ENERGY_PER_FOOD (128)
+#define WALL_PLACE_ENERGY_COST (1)
+#define WALL_REMOVE_ENERGY_COST (3)
+
+#define WALL_RED (100)
+#define WALL_GREEN (50)
+#define WALL_BLUE (70)
+
+// dont touch these
+#define HUE_SPACING (2.09439510239319549231f)
+#define WHITE (0xffffffff)
+#define BLACK (0xff000000)
 
 int wrap(int value, int range);
 // int indexToX(int index, global int* worldSize);
@@ -181,19 +191,19 @@ actionKernel(global int* worldSize, global int* writingToA,
           actionSuccessful = true;
           break;
         case PLACE_WALL:
-          if (objAtPos == 0 && cellAtPos == -1)
+          if (objAtPos == 0 && cellAtPos == -1 && creatureEnergy[creature] >= WALL_PLACE_ENERGY_COST)
           {
             worldObjects[selectIndex] = 1; // for wall
             actionSuccessful = true;
-            creatureEnergy[creature]--;
+            creatureEnergy[creature] -= WALL_PLACE_ENERGY_COST;
           }
           break;
         case DAMAGE:
-          if (cellAtPos == -1)
+          if (cellAtPos == -1 && creatureEnergy[creature] >= WALL_REMOVE_ENERGY_COST)
           {
             worldObjects[selectIndex] = 0; // remove whatever is there
             actionSuccessful = true;
-            creatureEnergy[creature]--;
+            creatureEnergy[creature] -=WALL_REMOVE_ENERGY_COST;
           }
           break;
         case COPY:
@@ -525,7 +535,7 @@ renderBackgroundKernel(global int* worldSize,
   bool drawWall = worldObjects[worldIndex];
   if (drawWall)
   {
-    screen[index] = componentsToRgb(100, 90, 90);
+    screen[index] = componentsToRgb(WALL_RED, WALL_GREEN, WALL_BLUE);
   }
   else
   {
@@ -725,7 +735,7 @@ inline int componentsToRgb(int red, int green, int blue)
 
 inline void eat(int creature, int worldIndex, global short* creatureEnergy, global float* worldFood)
 {
-  short newFood = worldFood[worldIndex] * 256 + creatureEnergy[creature];
+  short newFood = worldFood[worldIndex] * ENERGY_PER_FOOD + creatureEnergy[creature];
   // check for overflow
   if (newFood > 0)
   {
@@ -752,6 +762,22 @@ inline void updateCreatureSelection(int creature, global char* creatureDirection
       break;
     default:
       break;
+  }
+}
+
+inline int rotatePointGetX(int xOrigin, int yOrigin, int xPoint, int yPoint, char direction)
+{
+  switch (direction)
+  {
+    default:
+    case 0: // down
+      return xPoint;
+    case 1: // right
+      return yPoint; // wrong TODO: fix
+    case 2: // up
+      return xOrigin - (xPoint - xOrigin);
+    case 3: // left
+      return yOrigin - (yPoint - yOrigin); // wrong TODO: fix
   }
 }
 

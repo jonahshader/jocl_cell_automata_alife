@@ -4,11 +4,13 @@ import jonahshader.opencl.CLFloatArray
 import jonahshader.opencl.CLIntArray
 import jonahshader.opencl.OpenCLProgram
 import processing.core.PApplet
+import java.lang.Math.abs
 import java.util.*
 
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
     companion object {
-        const val INIT_ENERGY = 128.toShort()
+        const val INIT_ENERGY = 256.toShort()
+        const val INIT_ENERGY_VARIANCE = 256
 
 
         const val VISION_WIDTH_EXTEND = 2
@@ -236,21 +238,11 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
         // init creatures
         for (i in 0 until numCreatures) {
-            var tempMoveX = 0
-            var tempMoveY = 0
-            val polarity = ran.nextFloat() > 0.5
-            val direction = ran.nextFloat() > 0.5
-            if (polarity)
-                tempMoveX = if (direction) 1 else -1
-            else
-                tempMoveY = if (direction) 1 else -1
-
-            selectX.array[i] = tempMoveX.toByte()
-            selectY.array[i] = tempMoveY.toByte()
-            creatureEnergy.array[i] = INIT_ENERGY
+            creatureEnergy.array[i] = (INIT_ENERGY + kotlin.math.abs(ran.nextInt()) % INIT_ENERGY_VARIANCE).toShort()
 
             lastActionSuccess.array[i] = 1
             creatureHue.array[i] = (ran.nextDouble() * Math.PI * 2.0).toFloat()
+            creatureDirection.array[i] = (kotlin.math.abs(ran.nextInt()) % 4).toByte()
 
             var findingSpotForCreature = true
             while (findingSpotForCreature) {
