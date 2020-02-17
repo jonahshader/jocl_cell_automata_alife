@@ -71,7 +71,6 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
 
   int worldIndex = posToIndexWrapped(x, y, worldSize);
 
-
   selectX[creature] = 0;
   selectY[creature] = 0;
   if (creatureEnergy[creature] >= 1) // if creature is alive,
@@ -177,6 +176,10 @@ actionKernel(global int* worldSize, global int* writingToA,
             creatureEnergy[creature]--;
           }
           break;
+        case ROTATE:
+          creatureEnergy[creature]--;
+          actionSuccessful = true;
+          break;
         case PLACE_WALL:
           if (objAtPos == 0 && cellAtPos == -1)
           {
@@ -192,15 +195,19 @@ actionKernel(global int* worldSize, global int* writingToA,
             actionSuccessful = true;
             creatureEnergy[creature]--;
           }
-
           break;
         case COPY:
-          if (cellAtPos != -1 && creatureEnergy[creature] > 1)
+          if (cellAtPos != -1)
           {
-            creatureEnergy[cellAtPos] += creatureEnergy[creature] / 2;
-            creatureEnergy[creature] /= 2;
-            actionSuccessful = true;
-            creatureEnergy[creature]--;
+            if (creatureEnergy[cellAtPos] == 0 && creatureEnergy[creature] > 1)
+            {
+              creatureEnergy[cellAtPos] += creatureEnergy[creature] / 2;
+              creatureEnergy[creature] /= 2;
+              actionSuccessful = true;
+              creatureEnergy[creature]--;
+              // if (creatureEnergy[creature] < 0)
+              //   creatureEnergy[creature] = 0;
+            }
           }
           break;
         default:
@@ -335,6 +342,12 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
       red = 180;
       green = 200;
       blue = 200;
+    }
+    else if (creatureEnergy[cell] < 0)
+    {
+      red = 255;
+      green = 0;
+      blue = 0;
     }
     else
     {
@@ -712,8 +725,13 @@ inline int componentsToRgb(int red, int green, int blue)
 
 inline void eat(int creature, int worldIndex, global short* creatureEnergy, global float* worldFood)
 {
-  creatureEnergy[creature] += max((int)(worldFood[worldIndex] * 256), 0);
-  worldFood[worldIndex] = 0.0f;
+  short newFood = worldFood[worldIndex] * 256 + creatureEnergy[creature];
+  // check for overflow
+  if (newFood > 0)
+  {
+    creatureEnergy[creature] = newFood;
+    worldFood[worldIndex] = 0.0f;
+  }
 }
 
 inline void updateCreatureSelection(int creature, global char* creatureDirection, global char* selectX, global char* selectY)

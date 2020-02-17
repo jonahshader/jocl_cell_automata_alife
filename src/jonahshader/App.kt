@@ -9,11 +9,11 @@ import kotlin.math.tanh
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 640
-        const val SCREEN_HEIGHT = 480
+        const val SCREEN_WIDTH = 1280
+        const val SCREEN_HEIGHT = 720
 
-        const val WORLD_WIDTH = 8192 * 2
-        const val WORLD_HEIGHT = 8192
+        const val WORLD_WIDTH = 8192 / 16
+        const val WORLD_HEIGHT = 8192 / 16
     }
 
     private val noDrawToggleKey = 'o'
@@ -38,8 +38,8 @@ class App : PApplet() {
     private lateinit var sim: Simulator
 
     override fun settings() {
-//        size(SCREEN_WIDTH, SCREEN_HEIGHT)
-        fullScreen()
+        size(SCREEN_WIDTH, SCREEN_HEIGHT)
+//        fullScreen()
         noSmooth()
 //        noAlpha()
 
@@ -52,7 +52,7 @@ class App : PApplet() {
     }
 
     override fun setup() {
-        frameRate(165f)
+        frameRate(60f)
         blendMode(PConstants.REPLACE)
         loadPixels()
         updatePixels()

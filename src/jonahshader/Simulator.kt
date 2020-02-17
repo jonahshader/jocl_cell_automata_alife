@@ -283,6 +283,14 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
             clp.executeKernel("spreadFoodKernel", worldWidth * worldHeight.toLong())
         }
+
+//        if (currentTick % 512 == 0L) {
+//            creatureEnergy.copyFromDevice()
+//            for (energy in creatureEnergy.array) {
+//                if (energy < 0)
+//                    println(energy)
+//            }
+//        }
         currentTick++
     }
 
