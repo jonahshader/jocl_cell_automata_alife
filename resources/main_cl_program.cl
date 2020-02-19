@@ -15,6 +15,11 @@ typedef enum {
   NUM_ACTIONS
 } Action;
 
+typedef enum {
+  WORLD_OBJ_AIR,
+  WORLD_OBJ_WALL
+} WorldObject;
+
 
 
 // uncomment option to enable
@@ -31,6 +36,10 @@ typedef enum {
 #define WALL_RED (100)
 #define WALL_GREEN (50)
 #define WALL_BLUE (70)
+
+#define DEAD_RED (180)
+#define DEAD_GREEN (200)
+#define DEAD_BLUE (200)
 
 // dont touch these
 #define HUE_SPACING (2.09439510239319549231f)
@@ -64,6 +73,10 @@ void updateCreatureSelection(int creature, global char* creatureDirection, globa
 // works on x or y
 float getCreaturePosInterp(int creature, global int* pCreatureLoc, global int* creatureLoc, float progress, int axisSize);
 
+float creatureRed(int creature, global float* creatureHue, global short* creatureEnergy);
+float creatureGreen(int creature, global float* creatureHue, global short* creatureEnergy);
+float creatureBlue(int creature, global float* creatureHue, global short* creatureEnergy);
+
 void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn);
 
 kernel void
@@ -74,7 +87,8 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   global int* creatureX, global int* creatureY, global short* creatureEnergy,
   global float* worldFood, global char* creatureAction, global char* creatureDirection,
   global float* creaturenn,
-  global int* nnStructure // note: nnStructure's first element is the number of layers (n). the following n elements are the sizes of each layer (without bias neuron and all that stuff)
+  global int* nnStructure, // note: nnStructure's first element is the number of layers (n). the following n elements are the sizes of each layer (without bias neuron and all that stuff)
+  global float* nnInputs
   )
 {
   int creature = get_global_id(0);
@@ -353,15 +367,9 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
     // so they will just be rendered as squares
     if (creatureEnergy[cell] == 0)
     {
-      red = 180;
-      green = 200;
-      blue = 200;
-    }
-    else if (creatureEnergy[cell] < 0)
-    {
-      red = 255;
-      green = 0;
-      blue = 0;
+      red = DEAD_RED;
+      green = DEAD_GREEN;
+      blue = DEAD_BLUE;
     }
     else
     {
@@ -496,9 +504,9 @@ renderForegroundSimpleKernel(global int* worldSize, global int* writingToA,
     {
       if (creatureEnergy[cell] == 0)
       {
-        red = 180;
-        green = 200;
-        blue = 200;
+        red = DEAD_RED;
+        green = DEAD_GREEN;
+        blue = DEAD_BLUE;
       }
       else
       {
@@ -728,6 +736,21 @@ inline float hueToBlue(float hue)
   return (1.0f + cos(hue + HUE_SPACING * 2.0f)) / 2.0f;
 }
 
+inline float creatureRed(int creature, global float* creatureHue, global short* creatureEnergy)
+{
+  return (creatureEnergy[creature] == 0) ? DEAD_RED : hueToRed(creatureHue[creature]);
+}
+
+inline float creatureGreen(int creature, global float* creatureHue, global short* creatureEnergy)
+{
+  return (creatureEnergy[creature] == 0) ? DEAD_GREEN : hueToGreen(creatureHue[creature]);
+}
+
+inline float creatureBlue(int creature, global float* creatureHue, global short* creatureEnergy)
+{
+  return (creatureEnergy[creature] == 0) ? DEAD_BLUE : hueToBlue(creatureHue[creature]);
+}
+
 inline int rgbToRed(int rgb){return (rgb >> 16) & 0xff;}
 inline int rgbToGreen(int rgb){return (rgb >> 8) & 0xff;}
 inline int rgbToBlue(int rgb){return rgb & 0xff;}
@@ -815,8 +838,7 @@ inline float getCreaturePosInterp(int creature, global int* pCreatureLoc, global
   return interpolate(pc, c, progress);
 }
 
-//TODO: need somewhere to store input values for neural network
-inline void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn)
+inline void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn, global float* nnInputs)
 {
   int nnSize = 0;
   for (int i = 0; i < nnStructure[0] - 1; i++)
@@ -830,4 +852,10 @@ inline void nnForwardProp(int creature, global int* nnStructure, global float* c
   {
     float sum = 0.0f;
   }
+}
+
+inline void nnUpdateInputs(int creature, global int* creatureX, global int* creatureY,
+  global float* creatureHue, global int* worldSize, global float* worldFood, global char* worldObjects)
+{
+
 }

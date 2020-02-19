@@ -58,6 +58,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private var creatureNN: CLFloatArray
     private val creatureToSpec = clp.createCLIntArray(1)
     private val nnStructure = clp.createCLIntArray(NN_HIDDEN_LAYERS.size + 3)
+    private val nnInputs = clp.createCLFloatArray(NN_INPUTS * numCreatures)
 
     init {
         var singleNNSize = 0
@@ -165,6 +166,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureDirection.registerAndSendArgument(updateCreatureKernel, i++)
         creatureNN.registerAndSendArgument(updateCreatureKernel, i++)
         nnStructure.registerAndSendArgument(updateCreatureKernel, i++)
+        nnInputs.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
