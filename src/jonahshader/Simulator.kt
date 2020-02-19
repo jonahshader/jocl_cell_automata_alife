@@ -14,6 +14,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         const val VISION_WIDTH_EXTEND = 2
         const val VISION_HEIGHT_EXTEND = 2
         const val VISION_LAYERS = 3// RGB
+        val VISION_SIZE = intArrayOf(VISION_WIDTH_EXTEND * 2 + 1, VISION_HEIGHT_EXTEND * 2 + 1)
         const val NN_INPUTS = (VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS
         // output consists of actions and parameters
         // actions are: nothing, move, rotate, eat, place wall, damage, copy
@@ -59,6 +60,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val creatureToSpec = clp.createCLIntArray(1)
     private val nnStructure = clp.createCLIntArray(NN_HIDDEN_LAYERS.size + 3)
     private val nnInputs = clp.createCLFloatArray(NN_INPUTS * numCreatures)
+    private val visionSize = CLIntArray(VISION_SIZE, clp.context, clp.commandQueue)
 
     init {
         var singleNNSize = 0
@@ -167,6 +169,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureNN.registerAndSendArgument(updateCreatureKernel, i++)
         nnStructure.registerAndSendArgument(updateCreatureKernel, i++)
         nnInputs.registerAndSendArgument(updateCreatureKernel, i++)
+        visionSize.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
@@ -220,6 +223,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureToSpec.copyToDevice()
         creatureNN.copyToDevice()
         nnStructure.copyToDevice()
+        visionSize.copyToDevice()
     }
 
     private fun initWorld() {

@@ -77,7 +77,12 @@ float creatureRed(int creature, global float* creatureHue, global short* creatur
 float creatureGreen(int creature, global float* creatureHue, global short* creatureEnergy);
 float creatureBlue(int creature, global float* creatureHue, global short* creatureEnergy);
 
-void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn);
+void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn, global float* nnOutputs);
+
+void nnUpdateInputs(int creature, global int* creatureX, global int* creatureY,
+  global float* creatureHue, global int* worldSize, global float* worldFood, global char* worldObjects,
+  global int* nnStructure, global int* visionSize, global char* creatureDirection,
+  global int* readWorld, global float* nnInputs, global short* creatureEnergy);
 
 kernel void
 updateCreatureKernel(global int* worldSize, global int* writingToA,
@@ -838,24 +843,104 @@ inline float getCreaturePosInterp(int creature, global int* pCreatureLoc, global
   return interpolate(pc, c, progress);
 }
 
-inline void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn, global float* nnInputs)
+inline void nnForwardProp(int creature, global int* nnStructure, global float* creaturenn, global float* nnInputs, global float* nnOutputs)
 {
   int nnSize = 0;
-  for (int i = 0; i < nnStructure[0] - 1; i++)
+  for (int i = 1; i < nnStructure[0]; i++)
   {
     nnSize += (nnStructure[i] + 3) * nnStructure[i + 1];
   }
-  int nnStartIndex = creature * nnSize;
+  const int nnBeginIndex = creature * nnSize;
+  int nnIndex = nnBeginIndex;
 
-  // loop through all layers
-  for (int i = 0; i < nnStructure[0] - 1; i++)
+  // just the first layer, reading inputs
+  for (int o = 0; o < nnStructure[2]; o++)
   {
     float sum = 0.0f;
+    for (int i = 0; i < nnStructure[1]; i++)
+    {
+      sum += nnInput[nnIndex] * creaturenn[nnIndex++];
+    }
+    // bias neuron
+    sum += creaturenn[nnIndex++];
+    // recursive neuron
+    // first is weight, second is recursive storage
+    sum += creaturenn[nnIndex++] * creaturenn[nnIndex];
+    // pass through activation and store in recursive neuron
+    creaturenn[nnIndex++] = tanh(sum);
   }
+
+  int outStartIndex = nnBeginindex;
+  for (int n = 2; n < nnStructure[0]; n++)
+  {
+    outStartIndex += (nnStructure[n-1] + 3) * nnStructure[n]; //hhhhhhhhhhuhuhjhhkuuhhh,uhmhn
+    for (int o = 0; o < nnStructure[n+1]; o++)
+    {
+      for (int i = 0; i < nnStructure[n]; n++)
+      {
+        sum +=
+      }
+    }
+  }
+
+  // the rest of the layers
+
+  // // loop through all layers
+  // for (int l = 1; l < nnStructure[0]; l++)
+  // {
+  //   // loop through layer outputs
+  //   for (int o = 0; o < nnStructure[l]; o++)
+  //   {
+  //
+  //   }
+  //
+  // }
 }
 
 inline void nnUpdateInputs(int creature, global int* creatureX, global int* creatureY,
-  global float* creatureHue, global int* worldSize, global float* worldFood, global char* worldObjects)
+  global float* creatureHue, global int* worldSize, global float* worldFood, global char* worldObjects,
+  global int* nnStructure, global int* visionSize, global char* creatureDirection,
+  global int* readWorld, global float* nnInputs, global short* creatureEnergy)
 {
+  int numInputs = nnStructure[1];
+  int memoryIndex = numInputs * creature; // current index to write into nnInputs memory
 
+  int cx = creatureX[creature];
+  int cy = creatureY[creature];
+  char dir = creatureDirection[creature];
+
+  int visionWidth = visionSize[0];
+  int visionHeight = visionSize[1];
+
+  for (int y = 0; y < visionHeight; y++)
+  {
+    for (int x = 0; x < visionWidth; x++)
+    {
+      int xToRead = rotatePointX(cx, cy, x, y, dir);
+      int yToRead = rotatePointY(cx, cy, x, y, dir);
+      int indexToRead = posToIndexWrapped(xToRead, yToRead, worldSize);
+
+      int cellAtPos = readWorld[indexToRead];
+      // if this spot is a creature, and its not this creature,
+      if (cellAtPos >= 0 && cellAtPos != creature)
+      {
+        // read creature color and store in input array
+        nnInputs[memoryIndex++] = creatureRed(creature, creatureHue, creatureEnergy);
+        nnInputs[memoryIndex++] = creatureGreen(creature, creatureHue, creatureEnergy);
+        nnInputs[memoryIndex++] = creatureBlue(creature, creatureHue, creatureEnergy);
+      }
+      else if (worldObjects[indexToRead] == WORLD_OBJ_WALL)
+      {
+        nnInputs[memoryIndex++] = WALL_RED / 255.0f;
+        nnInputs[memoryIndex++] = WALL_GREEN / 255.0f;
+        nnInputs[memoryIndex++] = WALL_BLUE / 255.0f;
+      }
+      else
+      {
+        nnInputs[memoryIndex++] = 0.0f;
+        nnInputs[memoryIndex++] = worldFood[indexToRead]; // food is green :)
+        nnInputs[memoryIndex++] = 0.0f;
+      }
+    }
+  }
 }
