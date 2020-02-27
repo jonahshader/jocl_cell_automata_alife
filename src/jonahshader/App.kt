@@ -12,8 +12,8 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 1280
         const val SCREEN_HEIGHT = 720
 
-        const val WORLD_WIDTH = 8192 / 16
-        const val WORLD_HEIGHT = 8192 / 16
+        const val WORLD_WIDTH = 8192/16
+        const val WORLD_HEIGHT = 8192/16
     }
 
     private val noDrawToggleKey = 'o'
@@ -52,14 +52,17 @@ class App : PApplet() {
     }
 
     override fun setup() {
-        frameRate(60f)
+        frameRate(165f)
         blendMode(PConstants.REPLACE)
         loadPixels()
         updatePixels()
 
         val seed = (Math.random() * Long.MAX_VALUE).toLong()
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, ((WORLD_WIDTH * WORLD_HEIGHT) / 64.0).toInt(), "main_cl_program.cl", seed)
+        val numCreatures = ((WORLD_WIDTH * WORLD_HEIGHT) / 128.0).toInt() + 1
+//        val numCreatures = 2049
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, numCreatures, "main_cl_program.cl", seed)
         println("seed: $seed")
+        println("creatures: $numCreatures")
     }
 
     override fun draw() {

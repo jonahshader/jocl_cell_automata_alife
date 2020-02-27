@@ -5,23 +5,24 @@ import jonahshader.opencl.CLIntArray
 import jonahshader.opencl.OpenCLProgram
 import processing.core.PApplet
 import java.util.*
+import kotlin.math.pow
 
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
     companion object {
-        const val INIT_ENERGY = 256.toShort()
-        const val INIT_ENERGY_VARIANCE = 256
+        const val INIT_ENERGY = 512.toShort()
+        const val INIT_ENERGY_VARIANCE = 5000
 
-        const val VISION_WIDTH_EXTEND = 2
-        const val VISION_HEIGHT_EXTEND = 2
-        const val VISION_LAYERS = 3// RGB
+        const val VISION_WIDTH_EXTEND = 4
+        const val VISION_HEIGHT_EXTEND = 4
+        const val VISION_LAYERS = 3 // RGB
         val VISION_SIZE = intArrayOf(VISION_WIDTH_EXTEND * 2 + 1, VISION_HEIGHT_EXTEND * 2 + 1)
-        const val NN_INPUTS = (VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS
+        const val NN_INPUTS = ((VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS) + 1
         // output consists of actions and parameters
         // actions are: nothing, move, rotate, eat, place wall, damage, copy
-        // parameters are forward/backward, left/right, hue x, hue y
-        const val NN_OUTPUTS = 9
+        // parameters are left/right, hue x, hue y
+        const val NN_OUTPUTS = 10
 
-        val NN_HIDDEN_LAYERS = intArrayOf(30, 30)
+        val NN_HIDDEN_LAYERS = intArrayOf(30, 18, 15, 15, 15)
 
 //        val NN_CONFIG = intArrayOf(NN_INPUTS,
 //                30, 30, // hidden layers
@@ -58,9 +59,11 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val creatureDirection = clp.createCLCharArray(numCreatures)
     private var creatureNN: CLFloatArray
     private val creatureToSpec = clp.createCLIntArray(1)
-    private val nnStructure = clp.createCLIntArray(NN_HIDDEN_LAYERS.size + 3)
+    private val nnStructure = clp.createCLIntArray(NN_HIDDEN_LAYERS.size + 2)
     private val nnInputs = clp.createCLFloatArray(NN_INPUTS * numCreatures)
     private val visionSize = CLIntArray(VISION_SIZE, clp.context, clp.commandQueue)
+    private val nnConstants = clp.createCLIntArray(2)
+    private val nnOutputs = clp.createCLFloatArray(NN_OUTPUTS * numCreatures)
 
     init {
         var singleNNSize = 0
@@ -78,6 +81,21 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         println("Number of floats in nn: $singleNNSize")
         // now that we have the size of the nn calculated, make the CLFloatArray
         creatureNN = clp.createCLFloatArray(singleNNSize * numCreatures)
+
+
+        // neural net stuff
+        nnStructure.array[0] = NN_INPUTS
+        for (i in NN_HIDDEN_LAYERS.indices) {
+            nnStructure.array[i + 1] = NN_HIDDEN_LAYERS[i]
+        }
+        nnStructure.array[nnStructure.array.lastIndex] = NN_OUTPUTS
+        nnConstants.array[0] = NN_HIDDEN_LAYERS.size + 1
+        nnConstants.array[1] = singleNNSize
+
+        for (i in creatureNN.array.indices) {
+//            creatureNN.array[i] = ran.nextFloat() * if(ran.nextFloat() > 0.5f) 1 else -1
+            creatureNN.array[i] = ran.nextGaussian().toFloat() * 1f
+        }
 
         initWorld()
 
@@ -98,6 +116,9 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureEnergy.registerAndSendArgument(actionKernel, i++)
         creatureAction.registerAndSendArgument(actionKernel, i++)
         worldObjects.registerAndSendArgument(actionKernel, i++)
+        nnConstants.registerAndSendArgument(actionKernel, i++)
+        creatureNN.registerAndSendArgument(actionKernel, i++)
+        randomNumbers.registerAndSendArgument(actionKernel, i++)
 
         val actionCleanupKernel = clp.getKernel("actionCleanupKernel")
         i = 0
@@ -170,6 +191,10 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         nnStructure.registerAndSendArgument(updateCreatureKernel, i++)
         nnInputs.registerAndSendArgument(updateCreatureKernel, i++)
         visionSize.registerAndSendArgument(updateCreatureKernel, i++)
+        nnConstants.registerAndSendArgument(updateCreatureKernel, i++)
+        creatureHue.registerAndSendArgument(updateCreatureKernel, i++)
+        worldObjects.registerAndSendArgument(updateCreatureKernel, i++)
+        nnOutputs.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
@@ -224,6 +249,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureNN.copyToDevice()
         nnStructure.copyToDevice()
         visionSize.copyToDevice()
+        nnConstants.copyToDevice()
     }
 
     private fun initWorld() {
@@ -237,23 +263,15 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screenSizeCenterScale.array[4] = 1f
         screenSizeCenterScale.array[5] = 1f
 
-        // neural net stuff
-        nnStructure.array[0] = NN_HIDDEN_LAYERS.size + 2 // first elem is number of layers
-        nnStructure.array[1] = NN_INPUTS
-        for (i in NN_HIDDEN_LAYERS.indices) {
-            nnStructure.array[i + 2] = NN_HIDDEN_LAYERS[i]
-        }
-        nnStructure.array[nnStructure.array.lastIndex] = NN_OUTPUTS
 
-        for (i in creatureNN.array.indices) {
-            creatureNN.array[i] = ran.nextFloat() * if(ran.nextFloat() > 0.5f) 1 else -1
-        }
 
-        // init worlds to -1
+        // init worlds
         for (i in 0 until worldWidth * worldHeight) {
             worldA.array[i] = -1
             worldB.array[i] = -1
             randomNumbers.array[i] = ran.nextInt()
+            worldFood.array[i] = ran.nextFloat().pow(8)
+            worldFoodBackBuffer.array[i] = worldFood.array[i]
         }
 
         // init creatures
@@ -293,7 +311,9 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         clp.waitForCL()
         if (currentTick % 32 == 0L) {
             clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
+            clp.waitForCL()
             clp.executeKernel("spreadFoodKernel", worldWidth * worldHeight.toLong())
+            clp.waitForCL()
         }
 
 //        if (currentTick % 512 == 0L) {
@@ -303,6 +323,15 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 //                    println(energy)
 //            }
 //        }
+        if (currentTick % 512 == 0L) {
+//            nnOutputs.copyFromDevice()
+////            for (o in nnOutputs.array)
+////                println(o)
+
+//            lastActionSuccess.copyFromDevice()
+//            for (o in lastActionSuccess.array)
+//                println(o)
+        }
         currentTick++
     }
 
