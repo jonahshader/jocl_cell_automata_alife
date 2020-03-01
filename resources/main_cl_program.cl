@@ -304,7 +304,7 @@ actionKernel(global int* worldSize, global int* writingToA,
               int otherCreatureNNStartIndex = cellAtPos * nnSize;
               for (int i = 0; i < nnSize; i++)
               {
-                creaturenn[i + otherCreatureNNStartIndex] = creaturenn[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * 0.000;
+                creaturenn[i + otherCreatureNNStartIndex] = creaturenn[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * 0.001;
               }
 
               actionSuccessful = true;
@@ -1011,7 +1011,7 @@ inline void nnUpdateInputs(int creature, global int* creatureX, global int* crea
   int visionWidth = visionSize[0];
   int visionHeight = visionSize[1];
 
-  nnInputs[memoryIndex++] = lastActionSuccess[creature] ? 15 : -15;
+  nnInputs[memoryIndex++] = lastActionSuccess[creature] ? 1 : -1;
 
   for (int y = 0; y < visionHeight; y++)
   {
