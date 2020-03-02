@@ -31,7 +31,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
     private val clp = OpenCLProgram(openClFilename, arrayOf("actionKernel", "actionCleanupKernel",
             "renderForegroundSimpleKernel", "renderForegroundDetailedKernel", "updateCreatureKernel", "addFoodKernel",
-            "spreadFoodKernel", "flipWritingToAKernel", "renderBackgroundKernel", "spectateCreatureKernel"))
+            "spreadFoodKernel", "flipWritingToAKernel", "renderBackgroundKernel", "spectateCreatureKernel",
+            "copySpectatingToAll"))
     private var currentTick = 0L
     private var ran = Random(seed)
 
@@ -224,6 +225,15 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureToSpec.registerAndSendArgument(spectateCreatureKernel, i++)
         screenSizeCenterScale.registerAndSendArgument(spectateCreatureKernel, i++)
 
+        val copySpectatingToAll = clp.getKernel("copySpectatingToAll")
+        i = 0
+        creatureToSpec.registerAndSendArgument(copySpectatingToAll, i++)
+        creatureNN.registerAndSendArgument(copySpectatingToAll, i++)
+        nnStructure.registerAndSendArgument(copySpectatingToAll, i++)
+        nnConstants.registerAndSendArgument(copySpectatingToAll, i++)
+        nnInputs.registerAndSendArgument(copySpectatingToAll, i++)
+        nnOutputs.registerAndSendArgument(copySpectatingToAll, i++)
+
         worldSize.copyToDevice()
         writingToA.copyToDevice()
         worldA.copyToDevice()
@@ -335,13 +345,15 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         currentTick++
     }
 
-    fun render(xCenter: Float, yCenter: Float, zoom: Float, progress: Float, spectate: Boolean) {
+    fun render(xCenter: Float, yCenter: Float, zoom: Float, progress: Float, spectate: Boolean, creatureSpectating: Int) {
         assert(zoom >= 1)
         screenSizeCenterScale.array[2] = xCenter
         screenSizeCenterScale.array[3] = yCenter
         screenSizeCenterScale.array[4] = zoom
         screenSizeCenterScale.array[5] = progress
         screenSizeCenterScale.copyToDevice()
+        creatureToSpec.array[0] = creatureSpectating
+        creatureToSpec.copyToDevice()
         if (spectate) {
             clp.executeKernel("spectateCreatureKernel", 1)
             screenSizeCenterScale.copyFromDevice()
@@ -362,5 +374,11 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
     fun dispose() {
         clp.dispose()
+    }
+
+    fun replicateSpectatingToAll(creatureSpectating: Int) {
+        creatureToSpec.array[0] = creatureSpectating
+        creatureToSpec.copyToDevice()
+        clp.executeKernel("copySpectatingToAll", numCreatures.toLong())
     }
 }

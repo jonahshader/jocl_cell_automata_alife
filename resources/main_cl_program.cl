@@ -123,6 +123,7 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
     // int nextDirection = (getNextRandom(creature, randomNumbers) % 2) * 2 - 1;
 
     // run neural net
+
     nnUpdateInputs(creature, creatureX, creatureY,
       creatureHue, worldSize, worldFood, worldObjects,
       visionSize, creatureDirection,
@@ -691,6 +692,23 @@ spectateCreatureKernel(global int* worldSize, global int* creatureX, global int*
   float prog = screenSizeCenterScale[5];
   screenSizeCenterScale[2] = getCreaturePosInterp(c, pCreatureX, creatureX, prog, worldSize[0]);
   screenSizeCenterScale[3] = getCreaturePosInterp(c, pCreatureY, creatureY, prog, worldSize[1]);
+}
+
+kernel void
+copySpectatingToAll(global int* creatureToSpec, global float* creaturenn,
+  global int* nnStructure, global int* nnConstants,
+  global float* nnInputs, global float* nnOutputs)
+{
+  int creature = get_global_id(0);
+  int creatureToCopy = creatureToSpec[0];
+
+  int creatureNNStart = creature * nnConstants[1];
+  int creatureToCopyNNStart = creatureToCopy * nnConstants[1];
+
+  for (int i = 0; i < nnConstants[1]; i++)
+  {
+    creaturenn[i + creatureNNStart] = creaturenn[i + creatureToCopyNNStart];
+  }
 }
 
 inline int wrap(int value, int range)

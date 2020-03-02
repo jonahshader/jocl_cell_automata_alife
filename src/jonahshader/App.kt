@@ -4,8 +4,6 @@ import processing.core.PApplet
 import processing.core.PConstants
 import processing.event.KeyEvent
 import kotlin.math.max
-import kotlin.math.pow
-import kotlin.math.tanh
 
 class App : PApplet() {
     companion object {
@@ -14,6 +12,8 @@ class App : PApplet() {
 
         const val WORLD_WIDTH = 8192/16
         const val WORLD_HEIGHT = 8192/16
+
+        const val NUM_CREATURES = ((WORLD_WIDTH * WORLD_HEIGHT) / 128.0).toInt() + 1
     }
 
     private val noDrawToggleKey = 'o'
@@ -32,6 +32,7 @@ class App : PApplet() {
     private var yCamVel = 0.0
     private var zoomVel = 0.0
     private var spectating = false
+    private var creatureSpectating = 0
 
     private var iterationsPerFrame = 0.125f
 
@@ -58,11 +59,11 @@ class App : PApplet() {
         updatePixels()
 
         val seed = (Math.random() * Long.MAX_VALUE).toLong()
-        val numCreatures = ((WORLD_WIDTH * WORLD_HEIGHT) / 128.0).toInt() + 1
+
 //        val numCreatures = 2049
-        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, numCreatures, "main_cl_program.cl", seed)
+        sim = Simulator(WORLD_WIDTH, WORLD_HEIGHT, this, NUM_CREATURES, "main_cl_program.cl", seed)
         println("seed: $seed")
-        println("creatures: $numCreatures")
+        println("creatures: $NUM_CREATURES")
     }
 
     override fun draw() {
@@ -97,7 +98,7 @@ class App : PApplet() {
 
         loadPixels()
         if (iterationsPerFrame >= 1) {
-            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), 1f, spectating)
+            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), 1f, spectating, creatureSpectating)
             if (spectating) {
                 xCam = sim.screenSizeCenterScale.array[2].toDouble()
                 yCam = sim.screenSizeCenterScale.array[3].toDouble()
@@ -111,7 +112,7 @@ class App : PApplet() {
 //            progress = tanh(progress * 10) / tanh(10f)
 //            progress *= 5f
 //            progress = (1f - cos(PI*progress))/2f
-            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), progress, spectating)
+            sim.render(xCam.toFloat(), yCam.toFloat(), zoom.toFloat(), progress, spectating, creatureSpectating)
             if (spectating) {
                 xCam = sim.screenSizeCenterScale.array[2].toDouble()
                 yCam = sim.screenSizeCenterScale.array[3].toDouble()
@@ -144,6 +145,16 @@ class App : PApplet() {
             '[' -> iterationsPerFrame *= 0.5f
             '`' -> saveFrame("screenshot.png")
             'f' -> spectating = !spectating
+            '.' -> {
+                creatureSpectating++
+                creatureSpectating %= NUM_CREATURES
+            }
+            ',' -> {
+                creatureSpectating--
+                if (creatureSpectating < 0)
+                    creatureSpectating += NUM_CREATURES
+            }
+            'c' -> sim.replicateSpectatingToAll(creatureSpectating)
         }
     }
 
