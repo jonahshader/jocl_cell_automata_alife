@@ -1,0 +1,15 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="jocl_cell_automata_alife:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/jocl_cell_automata_alife_jar</output-path>
+    <root id="archive" name="jocl_cell_automata_alife.jar">
+      <element id="module-output" name="jocl_cell_automata_alife" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/kotlin-stdlib.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/kotlin-reflect.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/kotlin-test.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/kotlin-stdlib-jdk7.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$PROJECT_DIR$/lib/kotlin-stdlib-jdk8.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/processing/core/3.3.6/core-3.3.6.jar" path-in-jar="/" />
+      <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/jocl/jocl/2.0.1/jocl-2.0.1.jar" path-in-jar="/" />
+    </root>
+  </artifact>
+</component>
