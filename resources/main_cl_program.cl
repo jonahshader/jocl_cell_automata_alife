@@ -124,11 +124,11 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
 
     // run neural net
 
-    nnUpdateInputs(creature, creatureX, creatureY,
-      creatureHue, worldSize, worldFood, worldObjects,
-      visionSize, creatureDirection,
-      readWorld, nnInputs, creatureEnergy, nnConstants,
-      lastActionSuccess, nnStructure);
+    // nnUpdateInputs(creature, creatureX, creatureY,
+    //   creatureHue, worldSize, worldFood, worldObjects,
+    //   visionSize, creatureDirection,
+    //   readWorld, nnInputs, creatureEnergy, nnConstants,
+    //   lastActionSuccess, nnStructure);
 
     nnForwardProp(creature, nnStructure,
       creaturenn, nnInputs, nnConstants, nnOutputs);

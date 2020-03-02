@@ -65,6 +65,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val visionSize = CLIntArray(VISION_SIZE, clp.context, clp.commandQueue)
     private val nnConstants = clp.createCLIntArray(2)
     private val nnOutputs = clp.createCLFloatArray(NN_OUTPUTS * numCreatures)
+    private val nnLayerStartIndices = clp.createCLIntArray(NN_HIDDEN_LAYERS.size + 1)
 
     init {
         var singleNNSize = 0
@@ -97,6 +98,14 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 //            creatureNN.array[i] = ran.nextFloat() * if(ran.nextFloat() > 0.5f) 1 else -1
             creatureNN.array[i] = ran.nextGaussian().toFloat() * 1f
         }
+
+        for (i in nnInputs.array.indices)
+            nnInputs.array[i] = 0f
+
+        for (i in nnOutputs.array.indices)
+            nnOutputs.array[i] = 0f
+
+        //TODO: calculate nnLayerStartIndices and refactor neural net kernel code to use it
 
         initWorld()
 
@@ -284,6 +293,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             worldFoodBackBuffer.array[i] = worldFood.array[i]
         }
 
+
         // init creatures
         for (i in 0 until numCreatures) {
             creatureEnergy.array[i] = (INIT_ENERGY + kotlin.math.abs(ran.nextInt()) % INIT_ENERGY_VARIANCE).toShort()
@@ -333,10 +343,17 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 //                    println(energy)
 //            }
 //        }
-        if (currentTick % 512 == 0L) {
+        if (currentTick % 128 == 0L) {
 //            nnOutputs.copyFromDevice()
 ////            for (o in nnOutputs.array)
 ////                println(o)
+
+//            nnInputs.copyFromDevice()
+//            for (i in nnInputs.array)
+//                println(i)
+            nnOutputs.copyFromDevice()
+            for (i in 0 until NN_OUTPUTS)
+                println(nnOutputs.array[i])
 
 //            lastActionSuccess.copyFromDevice()
 //            for (o in lastActionSuccess.array)
