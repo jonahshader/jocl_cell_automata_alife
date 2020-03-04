@@ -9,8 +9,8 @@ import kotlin.math.pow
 
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
     companion object {
-        const val INIT_ENERGY = 512.toShort()
-        const val INIT_ENERGY_VARIANCE = 5000
+        const val INIT_ENERGY = 100.toShort()
+        const val INIT_ENERGY_VARIANCE = 3000
 
         const val VISION_WIDTH_EXTEND = 4
         const val VISION_HEIGHT_EXTEND = 4
@@ -22,11 +22,9 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         // parameters are left/right, hue x, hue y
         const val NN_OUTPUTS = 10
 
-        val NN_HIDDEN_LAYERS = intArrayOf(30, 18, 15, 15, 15)
+        val NN_LAYERS = intArrayOf(NN_INPUTS, 30, 15, 15, 15, NN_OUTPUTS)
 
-//        val NN_CONFIG = intArrayOf(NN_INPUTS,
-//                30, 30, // hidden layers
-//                NN_OUTPUT)
+
     }
 
     private val clp = OpenCLProgram(openClFilename, arrayOf("actionKernel", "actionCleanupKernel",
@@ -58,55 +56,21 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val creatureEnergy = clp.createCLShortArray(numCreatures)
     private val creatureAction = clp.createCLCharArray(numCreatures)
     private val creatureDirection = clp.createCLCharArray(numCreatures)
-    private var creatureNN: CLFloatArray
     private val creatureToSpec = clp.createCLIntArray(1)
-    private val nnStructure = clp.createCLIntArray(NN_HIDDEN_LAYERS.size + 2)
-    private val nnInputs = clp.createCLFloatArray(NN_INPUTS * numCreatures)
     private val visionSize = CLIntArray(VISION_SIZE, clp.context, clp.commandQueue)
-    private val nnConstants = clp.createCLIntArray(2)
-    private val nnOutputs = clp.createCLFloatArray(NN_OUTPUTS * numCreatures)
-    private val nnLayerStartIndices = clp.createCLIntArray(NN_HIDDEN_LAYERS.size + 1)
+
+    private val weightsPerNN = clp.createCLIntArray(1)
+    private val neuronsPerNN = clp.createCLIntArray(1)
+    private val nnStructure = CLIntArray(NN_LAYERS, clp.context, clp.commandQueue)
+    private val nnNumLayers = clp.createCLIntArray(1)
+
+    private lateinit var nnWeights: CLFloatArray
+    private lateinit var nnNeuronOutputs: CLFloatArray
+    private var weightArrayLayerStartIndices = clp.createCLIntArray(nnStructure.array.size)
+    private var neuronArrayLayerStartIndices = clp.createCLIntArray(nnStructure.array.size)
 
     init {
-        var singleNNSize = 0
-        // + 1 for bias neuron, + 1 for recursive weight, + 1 for recursive value storage
-        if (NN_HIDDEN_LAYERS.isNotEmpty()) {
-            singleNNSize += (NN_INPUTS + 3) * NN_HIDDEN_LAYERS[0]
-            for (i in 0 until NN_HIDDEN_LAYERS.size - 1) {
-                singleNNSize += (NN_HIDDEN_LAYERS[i] + 3) * NN_HIDDEN_LAYERS[i + 1]
-            }
-            singleNNSize += (NN_HIDDEN_LAYERS.last() + 3) * NN_OUTPUTS
-        }
-        else {
-            singleNNSize += (NN_INPUTS + 3) * NN_OUTPUTS
-        }
-        println("Number of floats in nn: $singleNNSize")
-        // now that we have the size of the nn calculated, make the CLFloatArray
-        creatureNN = clp.createCLFloatArray(singleNNSize * numCreatures)
-
-
-        // neural net stuff
-        nnStructure.array[0] = NN_INPUTS
-        for (i in NN_HIDDEN_LAYERS.indices) {
-            nnStructure.array[i + 1] = NN_HIDDEN_LAYERS[i]
-        }
-        nnStructure.array[nnStructure.array.lastIndex] = NN_OUTPUTS
-        nnConstants.array[0] = NN_HIDDEN_LAYERS.size + 1
-        nnConstants.array[1] = singleNNSize
-
-        for (i in creatureNN.array.indices) {
-//            creatureNN.array[i] = ran.nextFloat() * if(ran.nextFloat() > 0.5f) 1 else -1
-            creatureNN.array[i] = ran.nextGaussian().toFloat() * 1f
-        }
-
-        for (i in nnInputs.array.indices)
-            nnInputs.array[i] = 0f
-
-        for (i in nnOutputs.array.indices)
-            nnOutputs.array[i] = 0f
-
-        //TODO: calculate nnLayerStartIndices and refactor neural net kernel code to use it
-
+        initNeuralNetworks()
         initWorld()
 
         // register data arrays with kernels
@@ -126,9 +90,11 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureEnergy.registerAndSendArgument(actionKernel, i++)
         creatureAction.registerAndSendArgument(actionKernel, i++)
         worldObjects.registerAndSendArgument(actionKernel, i++)
-        nnConstants.registerAndSendArgument(actionKernel, i++)
-        creatureNN.registerAndSendArgument(actionKernel, i++)
         randomNumbers.registerAndSendArgument(actionKernel, i++)
+        weightsPerNN.registerAndSendArgument(actionKernel, i++)
+        nnWeights.registerAndSendArgument(actionKernel, i++)
+        neuronsPerNN.registerAndSendArgument(actionKernel, i++)
+        nnNeuronOutputs.registerAndSendArgument(actionKernel, i++)
 
         val actionCleanupKernel = clp.getKernel("actionCleanupKernel")
         i = 0
@@ -197,14 +163,17 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         worldFood.registerAndSendArgument(updateCreatureKernel, i++)
         creatureAction.registerAndSendArgument(updateCreatureKernel, i++)
         creatureDirection.registerAndSendArgument(updateCreatureKernel, i++)
-        creatureNN.registerAndSendArgument(updateCreatureKernel, i++)
-        nnStructure.registerAndSendArgument(updateCreatureKernel, i++)
-        nnInputs.registerAndSendArgument(updateCreatureKernel, i++)
         visionSize.registerAndSendArgument(updateCreatureKernel, i++)
-        nnConstants.registerAndSendArgument(updateCreatureKernel, i++)
         creatureHue.registerAndSendArgument(updateCreatureKernel, i++)
         worldObjects.registerAndSendArgument(updateCreatureKernel, i++)
-        nnOutputs.registerAndSendArgument(updateCreatureKernel, i++)
+        nnNeuronOutputs.registerAndSendArgument(updateCreatureKernel, i++)
+        neuronsPerNN.registerAndSendArgument(updateCreatureKernel, i++)
+        weightsPerNN.registerAndSendArgument(updateCreatureKernel, i++)
+        nnStructure.registerAndSendArgument(updateCreatureKernel, i++)
+        nnNumLayers.registerAndSendArgument(updateCreatureKernel, i++)
+        weightArrayLayerStartIndices.registerAndSendArgument(updateCreatureKernel, i++)
+        neuronArrayLayerStartIndices.registerAndSendArgument(updateCreatureKernel, i++)
+        nnWeights.registerAndSendArgument(updateCreatureKernel, i++)
 
         val addFoodKernel = clp.getKernel("addFoodKernel")
         i = 0
@@ -237,11 +206,6 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         val copySpectatingToAll = clp.getKernel("copySpectatingToAll")
         i = 0
         creatureToSpec.registerAndSendArgument(copySpectatingToAll, i++)
-        creatureNN.registerAndSendArgument(copySpectatingToAll, i++)
-        nnStructure.registerAndSendArgument(copySpectatingToAll, i++)
-        nnConstants.registerAndSendArgument(copySpectatingToAll, i++)
-        nnInputs.registerAndSendArgument(copySpectatingToAll, i++)
-        nnOutputs.registerAndSendArgument(copySpectatingToAll, i++)
 
         worldSize.copyToDevice()
         writingToA.copyToDevice()
@@ -265,10 +229,17 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         creatureAction.copyToDevice()
         creatureDirection.copyToDevice()
         creatureToSpec.copyToDevice()
-        creatureNN.copyToDevice()
-        nnStructure.copyToDevice()
         visionSize.copyToDevice()
-        nnConstants.copyToDevice()
+
+        weightsPerNN.copyToDevice()
+        neuronsPerNN.copyToDevice()
+        nnStructure.copyToDevice()
+        nnNumLayers.copyToDevice()
+
+        nnWeights.copyToDevice()
+        nnNeuronOutputs.copyToDevice()
+        weightArrayLayerStartIndices.copyToDevice()
+        neuronArrayLayerStartIndices.copyToDevice()
     }
 
     private fun initWorld() {
@@ -282,8 +253,6 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         screenSizeCenterScale.array[4] = 1f
         screenSizeCenterScale.array[5] = 1f
 
-
-
         // init worlds
         for (i in 0 until worldWidth * worldHeight) {
             worldA.array[i] = -1
@@ -292,7 +261,6 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             worldFood.array[i] = ran.nextFloat().pow(8)
             worldFoodBackBuffer.array[i] = worldFood.array[i]
         }
-
 
         // init creatures
         for (i in 0 until numCreatures) {
@@ -320,6 +288,28 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         }
     }
 
+    private fun initNeuralNetworks() {
+        nnNumLayers.array[0] = nnStructure.array.size
+        weightArrayLayerStartIndices.array[0] = 0
+        for (i in 1 until nnStructure.array.size) {
+            weightsPerNN.array[0] += (nnStructure.array[i - 1] + 2) * (nnStructure.array[i])
+            weightArrayLayerStartIndices.array[i] = weightsPerNN.array[0]
+        }
+
+        for (i in nnStructure.array.indices) {
+            neuronArrayLayerStartIndices.array[i] = neuronsPerNN.array[0]
+            neuronsPerNN.array[0] += nnStructure.array[i]
+        }
+
+        nnNeuronOutputs = clp.createCLFloatArray(numCreatures * neuronsPerNN.array[0])
+        nnWeights = clp.createCLFloatArray(numCreatures * weightsPerNN.array[0])
+
+        // init weights
+        for (i in nnWeights.array.indices) {
+            nnWeights.array[i] = (ran.nextFloat() * 2 - 1).toFloat()
+        }
+    }
+
     fun run() {
         clp.executeKernel("actionCleanupKernel", numCreatures.toLong())
         clp.waitForCL()
@@ -334,30 +324,6 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             clp.waitForCL()
             clp.executeKernel("spreadFoodKernel", worldWidth * worldHeight.toLong())
             clp.waitForCL()
-        }
-
-//        if (currentTick % 512 == 0L) {
-//            creatureEnergy.copyFromDevice()
-//            for (energy in creatureEnergy.array) {
-//                if (energy < 0)
-//                    println(energy)
-//            }
-//        }
-        if (currentTick % 128 == 0L) {
-//            nnOutputs.copyFromDevice()
-////            for (o in nnOutputs.array)
-////                println(o)
-
-//            nnInputs.copyFromDevice()
-//            for (i in nnInputs.array)
-//                println(i)
-            nnOutputs.copyFromDevice()
-            for (i in 0 until NN_OUTPUTS)
-                println(nnOutputs.array[i])
-
-//            lastActionSuccess.copyFromDevice()
-//            for (o in lastActionSuccess.array)
-//                println(o)
         }
         currentTick++
     }
@@ -378,7 +344,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
 
         clp.executeKernel("renderBackgroundKernel", screen.array.size.toLong())
         clp.waitForCL()
-        if (zoom > 8) {
+        if (zoom > 4) {
             clp.executeKernel("renderForegroundDetailedKernel", screen.array.size.toLong())
         } else {
             clp.executeKernel("renderForegroundSimpleKernel", screen.array.size.toLong())

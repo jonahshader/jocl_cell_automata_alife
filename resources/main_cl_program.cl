@@ -23,7 +23,7 @@ typedef enum {
 
 
 // uncomment option to enable
-// #define ANIMATION_STEPPING_ENABLED
+#define ANIMATION_STEPPING_ENABLED
 
 // one out of every ADD_FOOD_CHANCE will gain food
 // when the addFoodKernel runs
@@ -81,16 +81,23 @@ float creatureRed(int creature, global float* creatureHue, global short* creatur
 float creatureGreen(int creature, global float* creatureHue, global short* creatureEnergy);
 float creatureBlue(int creature, global float* creatureHue, global short* creatureEnergy);
 
-void nnForwardProp(int creature, global int* nnStructure,
-  global float* creaturenn, global float* nnInputs, global int* nnConstants,
-  global float* nnOutputs);
-
 void nnUpdateInputs(int creature, global int* creatureX, global int* creatureY,
   global float* creatureHue, global int* worldSize, global float* worldFood, global char* worldObjects,
   global int* visionSize, global char* creatureDirection,
-  global int* readWorld, global float* nnInputs, global short* creatureEnergy,
-  global int* nnConstants, global char* lastActionSuccess, global int* nnStructure);
+  global int* readWorld, global short* creatureEnergy, global char* lastActionSuccess,
+  global int* nnStructure, global float* nnNeuronOutputs, global int* neuronsPerNN);
 
+void nnForwardProp(int creature, global int* weightsPerNN,
+  global int* neuronsPerNN, global int* nnStructure, global int* nnNumLayers,
+  global int* weightArrayLayerStartIndices,
+  global int* neuronArrayLayerStartIndices, global float* nnWeights,
+  global float* nnNeuronOutputs);
+
+float nnGetOutput(int creature, int index, global float* nnNeuronOutputs,
+  global int* neuronsPerNN, global int* neuronArrayLayerStartIndices,
+  global int* nnNumLayers);
+
+void nnSetInput(int creature, int index, float value, global float* nnNeuronOutputs, global int* neuronsPerNN);
 
 kernel void
 updateCreatureKernel(global int* worldSize, global int* writingToA,
@@ -99,11 +106,13 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   global char* lastActionSuccess, global unsigned int* randomNumbers,
   global int* creatureX, global int* creatureY, global short* creatureEnergy,
   global float* worldFood, global char* creatureAction, global char* creatureDirection,
-  global float* creaturenn, global int* nnStructure, global float* nnInputs,
   global int* visionSize, // width height of vision
-  global int* nnConstants, // [0] is numLayers, [1] is size of one neural net
-  global float* creatureHue, global char* worldObjects, global float* nnOutputs
-  )
+  global float* creatureHue, global char* worldObjects,
+  global float* nnNeuronOutputs, global int* neuronsPerNN,
+  global int* weightsPerNN, global int* nnStructure, global int* nnNumLayers,
+  global int* weightArrayLayerStartIndices,
+  global int* neuronArrayLayerStartIndices,
+  global float* nnWeights)
 {
   int creature = get_global_id(0);
   global int* readWorld = writingToA[0] ? worldB : worldA;
@@ -117,48 +126,44 @@ updateCreatureKernel(global int* worldSize, global int* writingToA,
   selectY[creature] = 0;
   if (creatureEnergy[creature] >= 1) // if creature is alive,
   {
-    // determine next action
-    // int nextAction = getNextRandom(creature, randomNumbers) % NUM_ACTIONS;
-    // creatureAction[creature] = nextAction;
-    // int nextDirection = (getNextRandom(creature, randomNumbers) % 2) * 2 - 1;
-
     // run neural net
+    nnUpdateInputs(creature, creatureX, creatureY,
+      creatureHue, worldSize, worldFood,
+      worldObjects,
+      visionSize, creatureDirection,
+      readWorld, creatureEnergy, lastActionSuccess,
+      nnStructure, nnNeuronOutputs, neuronsPerNN);
 
-    // nnUpdateInputs(creature, creatureX, creatureY,
-    //   creatureHue, worldSize, worldFood, worldObjects,
-    //   visionSize, creatureDirection,
-    //   readWorld, nnInputs, creatureEnergy, nnConstants,
-    //   lastActionSuccess, nnStructure);
+    nnForwardProp(creature, weightsPerNN,
+      neuronsPerNN, nnStructure, nnNumLayers,
+      weightArrayLayerStartIndices,
+      neuronArrayLayerStartIndices,
+      nnWeights, nnNeuronOutputs);
 
-    nnForwardProp(creature, nnStructure,
-      creaturenn, nnInputs, nnConstants, nnOutputs);
-
-    int outputIndex = creature * nnStructure[nnConstants[0]];
     int maxActionOutput = 0;
-    float maxValue = nnOutputs[outputIndex];
+    float maxValue = nnGetOutput(creature, 0, nnNeuronOutputs,
+      neuronsPerNN, neuronArrayLayerStartIndices,
+      nnNumLayers);
     for (int i = 1; i < NUM_ACTIONS; i++)
     {
-      if (nnOutputs[outputIndex + i] > maxValue)
+      float output = nnGetOutput(creature, i, nnNeuronOutputs,
+        neuronsPerNN, neuronArrayLayerStartIndices,
+        nnNumLayers);
+      if (output > maxValue)
       {
-        maxValue = nnOutputs[outputIndex + i];
+        maxValue = output;
         maxActionOutput = i;
       }
     }
 
     int nextDirection;
 
-    nextDirection = nnOutputs[outputIndex + NUM_ACTIONS] > 0 ? 1 : -1;
-    creatureHue[creature] = atan2(nnOutputs[outputIndex + NUM_ACTIONS + 1], nnOutputs[outputIndex + NUM_ACTIONS + 2]);
-
-    if (getNextRandom(creature, randomNumbers) % 32 == 0)
-    {
-      // maxActionOutput = getNextRandom(creature, randomNumbers) % NUM_ACTIONS;
-      // nextDirection = (getNextRandom(creature, randomNumbers) % 2) * 2 - 1;
-      maxActionOutput = COPY;
-    }
-
+    nextDirection = nnGetOutput(creature, NUM_ACTIONS, nnNeuronOutputs,
+      neuronsPerNN, neuronArrayLayerStartIndices,
+      nnNumLayers) > 0 ? 1 : -1;
+    creatureHue[creature] = atan2(nnGetOutput(creature, NUM_ACTIONS + 1, nnNeuronOutputs, neuronsPerNN, neuronArrayLayerStartIndices, nnNumLayers),
+                                  nnGetOutput(creature, NUM_ACTIONS + 2, nnNeuronOutputs, neuronsPerNN, neuronArrayLayerStartIndices, nnNumLayers));
     creatureAction[creature] = maxActionOutput;
-
 
     switch (maxActionOutput)
     {
@@ -200,8 +205,9 @@ actionKernel(global int* worldSize, global int* writingToA,
   global char* selectX, global char* selectY, global int* creatureX, global int* creatureY,
   global int* pCreatureX, global int* pCreatureY,
   global char* lastActionSuccess, global short* creatureEnergy, global char* creatureAction,
-  global char* worldObjects, global int* nnConstants, global float* creaturenn,
-  global unsigned int* randomNumbers)
+  global char* worldObjects, global unsigned int* randomNumbers,
+  global int* weightsPerNN, global float* nnWeights,
+  global int* neuronsPerNN, global float* nnNeuronOutputs)
 {
   int creature = get_global_id(0);
   //copy current pos to previous pos
@@ -289,7 +295,6 @@ actionKernel(global int* worldSize, global int* writingToA,
         case COPY:
           if (cellAtPos != -1)
           {
-            // && creatureEnergy[cellAtPos] < creatureEnergy[creature]
             if (creatureEnergy[creature] > 1 && creatureEnergy[cellAtPos] == 0)
             {
               if (creatureEnergy[cellAtPos] + creatureEnergy[creature] / 2 > 0)
@@ -300,12 +305,19 @@ actionKernel(global int* worldSize, global int* writingToA,
 
 
               // copy neural net and mutate
-              int nnSize = nnConstants[1];
-              int nnStartIndex = creature * nnSize;
-              int otherCreatureNNStartIndex = cellAtPos * nnSize;
-              for (int i = 0; i < nnSize; i++)
+              int nnStartIndex = creature * weightsPerNN[0];
+              int otherCreatureNNStartIndex = cellAtPos * weightsPerNN[0];
+              for (int i = 0; i < weightsPerNN[0]; i++)
               {
-                creaturenn[i + otherCreatureNNStartIndex] = creaturenn[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * 0.001;
+                nnWeights[i + otherCreatureNNStartIndex] = nnWeights[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * 0.001;
+              }
+
+              int neuronOutStartIndex = creature * neuronsPerNN[0];
+              int otherCreatureNeuronOutStartIndex = creature * neuronsPerNN[0];
+
+              for (int i = 0; i < neuronsPerNN[0]; i++)
+              {
+                nnNeuronOutputs[i + otherCreatureNeuronOutStartIndex] = nnNeuronOutputs[i + neuronOutStartIndex];
               }
 
               actionSuccessful = true;
@@ -485,7 +497,7 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
     int screenRed = rgbToRed(screenRgb);
     int screenGreen = rgbToGreen(screenRgb);
     int screenBlue = rgbToBlue(screenRgb);
-    float partCreaturePartScreen = pow(brightness, 0.75f);
+    float partCreaturePartScreen = pow(brightness, 0.85f);
     int newRed = interpolate(screenRed, red, partCreaturePartScreen);
     int newGreen = interpolate(screenGreen, green, partCreaturePartScreen);
     int newBlue = interpolate(screenBlue, blue, partCreaturePartScreen);
@@ -695,20 +707,18 @@ spectateCreatureKernel(global int* worldSize, global int* creatureX, global int*
 }
 
 kernel void
-copySpectatingToAll(global int* creatureToSpec, global float* creaturenn,
-  global int* nnStructure, global int* nnConstants,
-  global float* nnInputs, global float* nnOutputs)
+copySpectatingToAll(global int* creatureToSpec)
 {
-  int creature = get_global_id(0);
-  int creatureToCopy = creatureToSpec[0];
-
-  int creatureNNStart = creature * nnConstants[1];
-  int creatureToCopyNNStart = creatureToCopy * nnConstants[1];
-
-  for (int i = 0; i < nnConstants[1]; i++)
-  {
-    creaturenn[i + creatureNNStart] = creaturenn[i + creatureToCopyNNStart];
-  }
+  // int creature = get_global_id(0);
+  // int creatureToCopy = creatureToSpec[0];
+  //
+  // int creatureNNStart = creature * nnConstants[1];
+  // int creatureToCopyNNStart = creatureToCopy * nnConstants[1];
+  //
+  // for (int i = 0; i < nnConstants[1]; i++)
+  // {
+  //   creaturenn[i + creatureNNStart] = creaturenn[i + creatureToCopyNNStart];
+  // }
 }
 
 inline int wrap(int value, int range)
@@ -950,77 +960,50 @@ inline float getCreaturePosInterp(int creature, global int* pCreatureLoc, global
   return interpolate(pc, c, progress);
 }
 
-inline void nnForwardProp(int creature, global int* nnStructure,
-  global float* creaturenn, global float* nnInputs, global int* nnConstants,
-  global float* nnOutputs)
+inline void nnForwardProp(int creature, global int* weightsPerNN,
+  global int* neuronsPerNN, global int* nnStructure, global int* nnNumLayers,
+  global int* weightArrayLayerStartIndices,
+  global int* neuronArrayLayerStartIndices, global float* nnWeights,
+  global float* nnNeuronOutputs)
 {
-  int nnStartIndex = creature * nnConstants[1];
-  int inputStartIndex = creature * nnStructure[0];
-  int weightIndex = nnStartIndex;
-  for (int n = 0; n < nnStructure[1]; n++)
-  {
-    float sum = 0.0f;
-    for (int i = 0; i < nnStructure[0]; i++)
-    {
-      sum += nnInputs[inputStartIndex + i] * creaturenn[weightIndex++];
-    }
-    sum += creaturenn[weightIndex];
-    sum += creaturenn[weightIndex + 1] * creaturenn[weightIndex + 2];
-    creaturenn[weightIndex + 2] = tanh(sum);
-    weightIndex += 3;
-  }
+  int weightOffset = creature * weightsPerNN[0];
+  int outOffset = creature * neuronsPerNN[0];
 
-  for (int l = 1; l < nnConstants[0] - 1; l++)
+  for (int l = 1; l < nnNumLayers[0]; l++)
   {
-    int previousOutputIndex = nnStartIndex - 1;
-    for (int x = 1; x < l+1; x++)
-    {
-      previousOutputIndex += (nnStructure[x-1] + 3) * nnStructure[x];
-    }
-    for (int n = 0; n < nnStructure[l + 1]; n++)
+    for (int n = 0; n < nnStructure[l]; n++)
     {
       float sum = 0.0f;
-      for (int i = 0; i < nnStructure[l]; i++)
-      {
-        sum += creaturenn[previousOutputIndex + (i+1) * (nnStructure[l-1] + 3)] * creaturenn[weightIndex++];
+      int neuronWeightStart = weightArrayLayerStartIndices[l-1] + ((nnStructure[l-1]+2) * n);
+      for (int i = 0; i < nnStructure[l-1]; i++) {
+        sum += nnNeuronOutputs[outOffset + neuronArrayLayerStartIndices[l-1] + i] * nnWeights[neuronWeightStart + nnStructure[l-1]];
+        sum += nnWeights[weightOffset + neuronWeightStart + nnStructure[l-1] + 1];
+        nnNeuronOutputs[outOffset + neuronArrayLayerStartIndices[l] + n] = tanh(sum);
       }
-      sum += creaturenn[weightIndex];
-      sum += creaturenn[weightIndex + 1] * creaturenn[weightIndex + 2];
-      creaturenn[weightIndex + 2] = tanh(sum);
-      weightIndex += 3;
     }
   }
+}
 
-  int outputIndex = creature * nnStructure[nnConstants[0]];
-  int l = nnConstants[0] - 1;
-  int previousOutputIndex = nnStartIndex - 1;
-  for (int x = 1; x < l+1; x++)
-  {
-    previousOutputIndex += (nnStructure[x-1] + 3) * nnStructure[x];
-  }
-  for (int n = 0; n < nnStructure[l + 1]; n++)
-  {
-    float sum = 0.0f;
-    for (int i = 0; i < nnStructure[l]; i++)
-    {
-      sum += creaturenn[previousOutputIndex + (i+1) * (nnStructure[l-1] + 3)] * creaturenn[weightIndex++];
-    }
-    sum += creaturenn[weightIndex];
-    sum += creaturenn[weightIndex + 1] * creaturenn[weightIndex + 2];
-    creaturenn[weightIndex + 2] = tanh(sum);
-    nnOutputs[outputIndex++] = creaturenn[weightIndex + 2];
-    weightIndex += 3;
-  }
+inline void nnSetInput(int creature, int index, float value, global float* nnNeuronOutputs, global int* neuronsPerNN)
+{
+  nnNeuronOutputs[creature * neuronsPerNN[0] + index] = value;
+}
+
+inline float nnGetOutput(int creature, int index, global float* nnNeuronOutputs,
+  global int* neuronsPerNN, global int* neuronArrayLayerStartIndices,
+  global int* nnNumLayers)
+{
+  return nnNeuronOutputs[index + (creature * neuronsPerNN[0]) + neuronArrayLayerStartIndices[nnNumLayers[0]-1]];
 }
 
 inline void nnUpdateInputs(int creature, global int* creatureX, global int* creatureY,
   global float* creatureHue, global int* worldSize, global float* worldFood, global char* worldObjects,
   global int* visionSize, global char* creatureDirection,
-  global int* readWorld, global float* nnInputs, global short* creatureEnergy,
-  global int* nnConstants, global char* lastActionSuccess, global int* nnStructure)
+  global int* readWorld, global short* creatureEnergy, global char* lastActionSuccess,
+  global int* nnStructure, global float* nnNeuronOutputs, global int* neuronsPerNN)
 {
   int numInputs = nnStructure[0];
-  int memoryIndex = numInputs * creature; // current index to write into nnInputs memory
+  int memoryIndex = 0;
 
   int cx = creatureX[creature];
   int cy = creatureY[creature];
@@ -1029,7 +1012,7 @@ inline void nnUpdateInputs(int creature, global int* creatureX, global int* crea
   int visionWidth = visionSize[0];
   int visionHeight = visionSize[1];
 
-  nnInputs[memoryIndex++] = lastActionSuccess[creature] ? 1 : -1;
+  nnSetInput(creature, memoryIndex++, lastActionSuccess[creature] ? 1.0f : -1.0f, nnNeuronOutputs, neuronsPerNN);
 
   for (int y = 0; y < visionHeight; y++)
   {
@@ -1044,21 +1027,21 @@ inline void nnUpdateInputs(int creature, global int* creatureX, global int* crea
       if (cellAtPos >= 0 && cellAtPos != creature)
       {
         // read creature color and store in input array
-        nnInputs[memoryIndex++] = creatureRed(creature, creatureHue, creatureEnergy);
-        nnInputs[memoryIndex++] = creatureGreen(creature, creatureHue, creatureEnergy);
-        nnInputs[memoryIndex++] = creatureBlue(creature, creatureHue, creatureEnergy);
+        nnSetInput(creature, memoryIndex++, creatureRed(creature, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, creatureGreen(creature, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, creatureBlue(creature, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
       }
       else if (worldObjects[indexToRead] == WORLD_OBJ_WALL)
       {
-        nnInputs[memoryIndex++] = WALL_RED / 255.0f;
-        nnInputs[memoryIndex++] = WALL_GREEN / 255.0f;
-        nnInputs[memoryIndex++] = WALL_BLUE / 255.0f;
+        nnSetInput(creature, memoryIndex++, WALL_RED / 255.0f, nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, WALL_GREEN / 255.0f, nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, WALL_BLUE / 255.0f, nnNeuronOutputs, neuronsPerNN);
       }
       else
       {
-        nnInputs[memoryIndex++] = 0.0f;
-        nnInputs[memoryIndex++] = worldFood[indexToRead]; // food is green :)
-        nnInputs[memoryIndex++] = 0.0f;
+        nnSetInput(creature, memoryIndex++, 0.0f, nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, worldFood[indexToRead], nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, 0.0f, nnNeuronOutputs, neuronsPerNN);
       }
     }
   }
