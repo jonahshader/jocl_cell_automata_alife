@@ -12,8 +12,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         const val INIT_ENERGY = 100.toShort()
         const val INIT_ENERGY_VARIANCE = 3000
 
-        const val VISION_WIDTH_EXTEND = 4
-        const val VISION_HEIGHT_EXTEND = 4
+        const val VISION_WIDTH_EXTEND = 2
+        const val VISION_HEIGHT_EXTEND = 3
         const val VISION_LAYERS = 3 // RGB
         val VISION_SIZE = intArrayOf(VISION_WIDTH_EXTEND * 2 + 1, VISION_HEIGHT_EXTEND * 2 + 1)
         const val NN_INPUTS = ((VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS) + 1
@@ -22,7 +22,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         // parameters are left/right, hue x, hue y
         const val NN_OUTPUTS = 10
 
-        val NN_LAYERS = intArrayOf(NN_INPUTS, 30, 15, 15, 15, NN_OUTPUTS)
+        val NN_LAYERS = intArrayOf(NN_INPUTS, 50, 100, 50, NN_OUTPUTS)
 
 
     }
@@ -258,7 +258,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             worldA.array[i] = -1
             worldB.array[i] = -1
             randomNumbers.array[i] = ran.nextInt()
-            worldFood.array[i] = ran.nextFloat().pow(8)
+            worldFood.array[i] = 0.8f + ran.nextFloat().pow(8) * 0.2f
             worldFoodBackBuffer.array[i] = worldFood.array[i]
         }
 

@@ -23,7 +23,7 @@ typedef enum {
 
 
 // uncomment option to enable
-#define ANIMATION_STEPPING_ENABLED
+// #define ANIMATION_STEPPING_ENABLED
 
 // one out of every ADD_FOOD_CHANCE will gain food
 // when the addFoodKernel runs
@@ -976,10 +976,11 @@ inline void nnForwardProp(int creature, global int* weightsPerNN,
       float sum = 0.0f;
       int neuronWeightStart = weightArrayLayerStartIndices[l-1] + ((nnStructure[l-1]+2) * n);
       for (int i = 0; i < nnStructure[l-1]; i++) {
-        sum += nnNeuronOutputs[outOffset + neuronArrayLayerStartIndices[l-1] + i] * nnWeights[neuronWeightStart + nnStructure[l-1]];
-        sum += nnWeights[weightOffset + neuronWeightStart + nnStructure[l-1] + 1];
-        nnNeuronOutputs[outOffset + neuronArrayLayerStartIndices[l] + n] = tanh(sum);
+        sum += nnNeuronOutputs[outOffset + neuronArrayLayerStartIndices[l-1] + i] * nnWeights[weightOffset + neuronWeightStart + i];
       }
+      sum += nnNeuronOutputs[outOffset + neuronArrayLayerStartIndices[l] + n] * nnWeights[weightOffset + neuronWeightStart + nnStructure[l-1]];
+      sum += nnWeights[weightOffset + neuronWeightStart + nnStructure[l-1] + 1];
+      nnNeuronOutputs[outOffset + neuronArrayLayerStartIndices[l] + n] = tanh(sum);
     }
   }
 }
