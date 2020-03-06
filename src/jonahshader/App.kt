@@ -10,7 +10,7 @@ class App : PApplet() {
         const val SCREEN_WIDTH = 1280
         const val SCREEN_HEIGHT = 720
 
-        const val WORLD_WIDTH = 8192/12
+        const val WORLD_WIDTH = 8192/6
         const val WORLD_HEIGHT = 8192/12
 
         const val NUM_CREATURES = ((WORLD_WIDTH * WORLD_HEIGHT) / 32.0).toInt() + 1

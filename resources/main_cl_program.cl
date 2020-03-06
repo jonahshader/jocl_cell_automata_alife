@@ -297,7 +297,7 @@ actionKernel(global int* worldSize, global int* writingToA,
           {
             if (creatureEnergy[creature] > 1 && creatureEnergy[cellAtPos] == 0)
             {
-              if (creatureEnergy[cellAtPos] + creatureEnergy[creature] / 2 > 0)
+              if ((creatureEnergy[cellAtPos] + creatureEnergy[creature]) / 2 > 0)
               {
                 creatureEnergy[cellAtPos] += creatureEnergy[creature] / 2;
                 creatureEnergy[creature] /= 2;
@@ -315,11 +315,11 @@ actionKernel(global int* worldSize, global int* writingToA,
               int neuronOutStartIndex = creature * neuronsPerNN[0];
               int otherCreatureNeuronOutStartIndex = creature * neuronsPerNN[0];
 
-              for (int i = 0; i < neuronsPerNN[0]; i++)
-              {
-                nnNeuronOutputs[i + otherCreatureNeuronOutStartIndex] = nnNeuronOutputs[i + neuronOutStartIndex];
-              }
-
+              // for (int i = 0; i < neuronsPerNN[0]; i++)
+              // {
+              //   nnNeuronOutputs[i + otherCreatureNeuronOutStartIndex] = nnNeuronOutputs[i + neuronOutStartIndex];
+              // }
+              lastActionSuccess[cellAtPos] = true;
               actionSuccessful = true;
             }
           }
