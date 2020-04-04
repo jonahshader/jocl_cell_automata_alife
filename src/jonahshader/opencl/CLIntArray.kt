@@ -3,7 +3,8 @@ package jonahshader.opencl
 import org.jocl.*
 import java.nio.ByteBuffer
 
-class CLIntArray(val array: IntArray, context: cl_context, private val commandQueue: cl_command_queue) {
+class CLIntArray(val array: IntArray, context: cl_context,
+                 private val commandQueue: cl_command_queue, private val clp: OpenCLProgram) : CLArray {
     private val memory: cl_mem
     private val hostMemPointer: Pointer = Pointer.to(array)
     private val deviceMemPointer: Pointer
@@ -12,6 +13,7 @@ class CLIntArray(val array: IntArray, context: cl_context, private val commandQu
         memory = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
                 Sizeof.cl_int * array.size.toLong(), hostMemPointer, null)
         deviceMemPointer = Pointer.to(memory)
+        clp.arraysToDispose.add(this)
     }
 
     /**
@@ -19,14 +21,14 @@ class CLIntArray(val array: IntArray, context: cl_context, private val commandQu
      * @param kernel - the kernel
      * @param argIndex - the index of the argument
      */
-    fun registerAndSendArgument(kernel: cl_kernel?, argIndex: Int) {
+    override fun registerAndSendArgument(kernel: cl_kernel?, argIndex: Int) {
         CL.clSetKernelArg(kernel, argIndex, Sizeof.cl_mem.toLong(), deviceMemPointer)
     }
 
     /**
      * copies this array from host to device
      */
-    fun copyToDevice() {
+    override fun copyToDevice() {
         CL.clEnqueueWriteBuffer(commandQueue, memory, true, 0,
                 Sizeof.cl_int * array.size.toLong(), hostMemPointer,
                 0, null, null)
@@ -35,9 +37,14 @@ class CLIntArray(val array: IntArray, context: cl_context, private val commandQu
     /**
      * copies this array from device to host
      */
-    fun copyFromDevice() {
+    override fun copyFromDevice() {
         CL.clEnqueueReadBuffer(commandQueue, memory, true, 0,
                 Sizeof.cl_int * array.size.toLong(), hostMemPointer,
                 0, null, null)
+    }
+
+    override fun dispose() {
+        CL.clReleaseMemObject(memory)
+        clp.arraysToDispose.remove(this)
     }
 }

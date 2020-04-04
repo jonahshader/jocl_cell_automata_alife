@@ -27,9 +27,9 @@ typedef enum {
 
 // one out of every ADD_FOOD_CHANCE will gain food
 // when the addFoodKernel runs
-#define ADD_FOOD_CHANCE (8192)
+#define ADD_FOOD_CHANCE (4096)
 
-#define ENERGY_PER_FOOD (1024)
+#define ENERGY_PER_FOOD (2048)
 #define WALL_PLACE_ENERGY_COST (1)
 #define WALL_REMOVE_ENERGY_COST (3)
 #define MOVE_ENERGY_COST (3)
@@ -98,6 +98,8 @@ float nnGetOutput(int creature, int index, global float* nnNeuronOutputs,
   global int* nnNumLayers);
 
 void nnSetInput(int creature, int index, float value, global float* nnNeuronOutputs, global int* neuronsPerNN);
+int rotatePointX(int xOrigin, int yOrigin, int xPoint, int yPoint, char direction);
+int rotatePointY(int xOrigin, int yOrigin, int xPoint, int yPoint, char direction);
 
 kernel void
 updateCreatureKernel(global int* worldSize, global int* writingToA,
@@ -207,7 +209,8 @@ actionKernel(global int* worldSize, global int* writingToA,
   global char* lastActionSuccess, global short* creatureEnergy, global char* creatureAction,
   global char* worldObjects, global unsigned int* randomNumbers,
   global int* weightsPerNN, global float* nnWeights,
-  global int* neuronsPerNN, global float* nnNeuronOutputs)
+  global int* neuronsPerNN, global float* nnNeuronOutputs,
+  global char* creatureDirection)
 {
   int creature = get_global_id(0);
   //copy current pos to previous pos
@@ -309,11 +312,13 @@ actionKernel(global int* worldSize, global int* writingToA,
               int otherCreatureNNStartIndex = cellAtPos * weightsPerNN[0];
               for (int i = 0; i < weightsPerNN[0]; i++)
               {
-                nnWeights[i + otherCreatureNNStartIndex] = nnWeights[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * 0.001;
+                nnWeights[i + otherCreatureNNStartIndex] = nnWeights[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * 0.001f;
               }
 
               int neuronOutStartIndex = creature * neuronsPerNN[0];
               int otherCreatureNeuronOutStartIndex = creature * neuronsPerNN[0];
+
+              // creatureDirection[cellAtPos] = getNextRandom(cellAtPos, randomNumbers) % 4;
 
               // for (int i = 0; i < neuronsPerNN[0]; i++)
               // {
@@ -895,23 +900,37 @@ inline void eat(int creature, int worldIndex, global short* creatureEnergy, glob
 
 inline void updateCreatureSelection(int creature, global char* creatureDirection, global char* selectX, global char* selectY)
 {
-  switch (creatureDirection[creature])
-  {
-    case 0: // down
-      selectY[creature] = 1;
-      break;
-    case 1: // right
-      selectX[creature] = 1;
-      break;
-    case 2: // up
-      selectY[creature] = -1;
-      break;
-    case 3: // left
-      selectX[creature] = -1;
-      break;
-    default:
-      break;
-  }
+  // switch (creatureDirection[creature])
+  // {
+  //   // case 0: // down
+  //   //   selectY[creature] = 1;
+  //   //   break;
+  //   // case 1: // right
+  //   //   selectX[creature] = 1;
+  //   //   break;
+  //   // case 2: // up
+  //   //   selectY[creature] = -1;
+  //   //   break;
+  //   // case 3: // left
+  //   //   selectX[creature] = -1;
+  //   //   break;
+  //   case 0: // right
+  //     selectX[creature] = 1;
+  //     break;
+  //   case 1: // up (appears down)
+  //     selectY[creature] = 1;
+  //     break;
+  //   case 2: // left
+  //     selectX[creature] = -1;
+  //     break;
+  //   case 3: // down (appears up)
+  //     selectY[creature] = -1;
+  //     break;
+  //   default:
+  //     break;
+  // }
+  selectX[creature] = rotatePointX(0, 0, 1, 0, creatureDirection[creature]);
+  selectY[creature] = rotatePointY(0, 0, 1, 0, creatureDirection[creature]);
 }
 
 inline int rotatePointX(int xOrigin, int yOrigin, int xPoint, int yPoint, char direction)
@@ -922,11 +941,11 @@ inline int rotatePointX(int xOrigin, int yOrigin, int xPoint, int yPoint, char d
     case 0: // down
       return xPoint;
     case 1: // right
-      return xOrigin + (yPoint - yOrigin);
+      return xOrigin - (yPoint - yOrigin);
     case 2: // up
       return xOrigin - (xPoint - xOrigin);
     case 3: // left
-      return xOrigin - (yPoint - yOrigin);
+      return xOrigin + (yPoint - yOrigin);
   }
 }
 
@@ -1015,12 +1034,12 @@ inline void nnUpdateInputs(int creature, global int* creatureX, global int* crea
 
   nnSetInput(creature, memoryIndex++, lastActionSuccess[creature] ? 1.0f : -1.0f, nnNeuronOutputs, neuronsPerNN);
 
-  for (int y = 0; y < visionHeight; y++)
+  for (int y = 0; y < visionWidth; y++)
   {
-    for (int x = 0; x < visionWidth; x++)
+    for (int x = 0; x < visionHeight; x++)
     {
-      int xToRead = rotatePointX(cx, cy, x-visionWidth/2, y-visionHeight/2, dir);
-      int yToRead = rotatePointY(cx, cy, x-visionWidth/2, y-visionHeight/2, dir);
+      int xToRead = rotatePointX(cx, cy, cx + (x-visionWidth/2), cy + (y-visionHeight/2), dir);
+      int yToRead = rotatePointY(cx, cy, cx + (x-visionWidth/2), cy + (y-visionHeight/2), dir);
       int indexToRead = posToIndexWrapped(xToRead, yToRead, worldSize);
 
       int cellAtPos = readWorld[indexToRead];

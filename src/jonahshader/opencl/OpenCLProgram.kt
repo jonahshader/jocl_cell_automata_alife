@@ -24,6 +24,7 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
     private val programSource: String
     private lateinit var program: cl_program
     lateinit var context: cl_context
+    val arraysToDispose = mutableListOf<CLArray>()
 
     init { // get source code from file
         val stringBuilder = StringBuilder()
@@ -35,6 +36,11 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
         for (i in kernelNames.indices) {
             kernels[kernelNames[i]] = CL.clCreateKernel(program, kernelNames[i], null)
         }
+    }
+
+    fun interopTest() {
+//        CL.clCreateFromGLBuffer()
+        CL.clCreateFromGLTexture(context, 0, 0, 0, 0, null)
     }
 
     fun getKernel(kernelName: String): cl_kernel? {
@@ -51,13 +57,13 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
         CL.clFinish(commandQueue)
     }
 
-    fun createCLIntArray(size: Int) : CLIntArray = CLIntArray(IntArray(size), context, commandQueue)
+    fun createCLIntArray(size: Int) : CLIntArray = CLIntArray(IntArray(size), context, commandQueue, this)
 
-    fun createCLCharArray(size: Int) : CLCharArray = CLCharArray(ByteArray(size), context, commandQueue)
+    fun createCLCharArray(size: Int) : CLCharArray = CLCharArray(ByteArray(size), context, commandQueue, this)
 
-    fun createCLShortArray(size: Int) : CLShortArray = CLShortArray(ShortArray(size), context, commandQueue)
+    fun createCLShortArray(size: Int) : CLShortArray = CLShortArray(ShortArray(size), context, commandQueue, this)
 
-    fun createCLFloatArray(size: Int) : CLFloatArray = CLFloatArray(FloatArray(size), context, commandQueue)
+    fun createCLFloatArray(size: Int) : CLFloatArray = CLFloatArray(FloatArray(size), context, commandQueue, this)
 
     // opencl setup stuff
     private fun clInit() {
@@ -106,7 +112,19 @@ class OpenCLProgram(filename: String, kernelNames: Array<String>) {
     }
 
     fun dispose() {
-//        CL.close
         waitForCL()
+
+        // dispose all arrays
+        while (arraysToDispose.isNotEmpty())
+            arraysToDispose[0].dispose()
+
+        // dispose everything else
+        for (k in kernels.values)
+            CL.clReleaseKernel(k)
+        CL.clReleaseProgram(program)
+        CL.clReleaseCommandQueue(commandQueue)
+        CL.clReleaseContext(context)
+//        CL.clReleaseDevice(devic)
+        //TODO: dispose device?
     }
 }

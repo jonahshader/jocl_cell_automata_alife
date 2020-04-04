@@ -47,7 +47,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val pCreatureY = clp.createCLIntArray(numCreatures)
     private val lastActionSuccess = clp.createCLCharArray(numCreatures)
     val screenSizeCenterScale = clp.createCLFloatArray(6)
-    private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue)
+    private val screen = CLIntArray(graphics.pixels, clp.context, clp.commandQueue, clp)
     private val randomNumbers = clp.createCLIntArray(worldWidth * worldHeight)
     private val worldObjects = clp.createCLCharArray(worldWidth * worldHeight)
     private val worldFood = clp.createCLFloatArray(worldWidth * worldHeight)
@@ -57,11 +57,11 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
     private val creatureAction = clp.createCLCharArray(numCreatures)
     private val creatureDirection = clp.createCLCharArray(numCreatures)
     private val creatureToSpec = clp.createCLIntArray(1)
-    private val visionSize = CLIntArray(VISION_SIZE, clp.context, clp.commandQueue)
+    private val visionSize = CLIntArray(VISION_SIZE, clp.context, clp.commandQueue, clp)
 
     private val weightsPerNN = clp.createCLIntArray(1)
     private val neuronsPerNN = clp.createCLIntArray(1)
-    private val nnStructure = CLIntArray(NN_LAYERS, clp.context, clp.commandQueue)
+    private val nnStructure = CLIntArray(NN_LAYERS, clp.context, clp.commandQueue, clp)
     private val nnNumLayers = clp.createCLIntArray(1)
 
     private lateinit var nnWeights: CLFloatArray
@@ -95,6 +95,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         nnWeights.registerAndSendArgument(actionKernel, i++)
         neuronsPerNN.registerAndSendArgument(actionKernel, i++)
         nnNeuronOutputs.registerAndSendArgument(actionKernel, i++)
+        creatureDirection.registerAndSendArgument(actionKernel, i++)
 
         val actionCleanupKernel = clp.getKernel("actionCleanupKernel")
         i = 0
@@ -258,7 +259,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             worldA.array[i] = -1
             worldB.array[i] = -1
             randomNumbers.array[i] = ran.nextInt()
-            worldFood.array[i] = 0.3f + ran.nextFloat().pow(8) * 0.2f
+            worldFood.array[i] = 0.1f + ran.nextFloat().pow(8) * 0.2f
             worldFoodBackBuffer.array[i] = worldFood.array[i]
         }
 
@@ -319,12 +320,52 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         clp.waitForCL()
         clp.executeKernel("actionKernel", numCreatures.toLong())
         clp.waitForCL()
+
         if (currentTick % 32 == 0L) {
             clp.executeKernel("addFoodKernel", worldWidth * worldHeight.toLong())
             clp.waitForCL()
             clp.executeKernel("spreadFoodKernel", worldWidth * worldHeight.toLong())
             clp.waitForCL()
         }
+
+        if (currentTick % 512 == 0L) {
+            creatureEnergy.copyFromDevice()
+            creatureDirection.copyFromDevice()
+            worldA.copyFromDevice()
+            worldB.copyFromDevice()
+            var creatureCount = 0
+            for (i in creatureEnergy.array) {
+                if (i > 0) creatureCount++
+            }
+            println("Num living creatures: $creatureCount")
+
+            val directions = HashMap<Byte, Int>()
+            for (i in creatureDirection.array) {
+                if (directions.containsKey(i)) {
+                    directions[i] = directions[i]!! + 1
+                } else {
+                    directions[i] = 1
+                }
+            }
+
+            for (i in directions.keys) {
+                println("$i direction: ${directions[i]}")
+            }
+
+            var num0 = 0
+            for (i in worldA.array) {
+                if (i == 0) num0++
+            }
+            println(num0)
+
+            num0 = 0
+            for (i in worldB.array) {
+                if (i == 0)num0++
+            }
+            println(num0)
+        }
+
+
         currentTick++
     }
 
