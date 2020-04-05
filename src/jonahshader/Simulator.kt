@@ -23,7 +23,8 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
         // parameters are left/right, hue x, hue y
         const val NN_OUTPUTS = 10
 
-        val NN_LAYERS = intArrayOf(NN_INPUTS, 15, 15, 15, 15, 15, 15, 15, NN_OUTPUTS)
+//        val NN_LAYERS = intArrayOf(NN_INPUTS, 15, 15, 15, 15, 15, 15, 15, NN_OUTPUTS)
+        val NN_LAYERS = intArrayOf(NN_INPUTS, 20, 18, 18, 18, 15, NN_OUTPUTS)
 //        val NN_LAYERS = intArrayOf(NN_INPUTS, 17, 17, 17, 17, 17, 17, NN_OUTPUTS)
 
 

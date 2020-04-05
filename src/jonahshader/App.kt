@@ -7,8 +7,8 @@ import kotlin.math.max
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 2560
-        const val SCREEN_HEIGHT = 1440
+        const val SCREEN_WIDTH = 2560/2
+        const val SCREEN_HEIGHT = 1440/2
 
 //        const val WORLD_WIDTH = 8192/4
 //        const val WORLD_HEIGHT = 8192/4
