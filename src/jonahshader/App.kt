@@ -7,11 +7,13 @@ import kotlin.math.max
 
 class App : PApplet() {
     companion object {
-        const val SCREEN_WIDTH = 1280
-        const val SCREEN_HEIGHT = 720
+        const val SCREEN_WIDTH = 2560
+        const val SCREEN_HEIGHT = 1440
 
-        const val WORLD_WIDTH = 8192/12
-        const val WORLD_HEIGHT = 8192/12
+//        const val WORLD_WIDTH = 8192/4
+//        const val WORLD_HEIGHT = 8192/4
+        const val WORLD_WIDTH = 2560/2
+        const val WORLD_HEIGHT = 1440/2
 
         const val NUM_CREATURES = ((WORLD_WIDTH * WORLD_HEIGHT) / 32.0).toInt() + 1
     }
@@ -49,10 +51,7 @@ class App : PApplet() {
     override fun exit() {
         sim.dispose()
         println("exiting...exit")
-        for (i in 0 until 10000) {
-            println("weener")
-        }
-//        super.exit()
+        super.exit()
     }
 
     override fun setup() {

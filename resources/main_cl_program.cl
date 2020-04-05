@@ -21,27 +21,28 @@ typedef enum {
 } WorldObject;
 
 
-
 // uncomment option to enable
 // #define ANIMATION_STEPPING_ENABLED
 
 // one out of every ADD_FOOD_CHANCE will gain food
 // when the addFoodKernel runs
-#define ADD_FOOD_CHANCE (4096)
+#define ADD_FOOD_CHANCE (800)
 
-#define ENERGY_PER_FOOD (2048)
+#define ENERGY_PER_FOOD (1024)
 #define WALL_PLACE_ENERGY_COST (1)
 #define WALL_REMOVE_ENERGY_COST (3)
 #define MOVE_ENERGY_COST (3)
 #define ROTATE_ENERGY_COST (1)
 
+#define MUTATION (0.03f)
+
 #define WALL_RED (255)
 #define WALL_GREEN (0)
 #define WALL_BLUE (0)
 
-#define DEAD_RED (0)
-#define DEAD_GREEN (0)
-#define DEAD_BLUE (255)
+#define DEAD_RED (0.0f)
+#define DEAD_GREEN (0.0f)
+#define DEAD_BLUE (1.0f)
 
 // dont touch these
 #define HUE_SPACING (2.09439510239319549231f)
@@ -312,7 +313,7 @@ actionKernel(global int* worldSize, global int* writingToA,
               int otherCreatureNNStartIndex = cellAtPos * weightsPerNN[0];
               for (int i = 0; i < weightsPerNN[0]; i++)
               {
-                nnWeights[i + otherCreatureNNStartIndex] = nnWeights[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * 0.001f;
+                nnWeights[i + otherCreatureNNStartIndex] = nnWeights[i + nnStartIndex] + randomFloatPosNeg(creature, randomNumbers) * MUTATION;
               }
 
               int neuronOutStartIndex = creature * neuronsPerNN[0];
@@ -462,22 +463,9 @@ renderForegroundDetailedKernel(global int* worldSize, global int* writingToA,
     float dx = ix - worldXF;
     float dy = iy - worldYF;
 
-    // renderAsSquares means the camera is zoomed out too far for circles to make screenSizeCenterScale
-    // so they will just be rendered as squares
-    if (creatureEnergy[cell] == 0)
-    {
-      red = DEAD_RED;
-      green = DEAD_GREEN;
-      blue = DEAD_BLUE;
-    }
-    else
-    {
-      float hue = creatureHue[cell];
-      red = hueToRed(hue) * 255.0f;
-      green = hueToGreen(hue) * 255.0f;
-      blue = hueToBlue(hue) * 255.0f;
-    }
-
+    red = creatureRed(cell, creatureHue, creatureEnergy) * 255.0f;
+    green = creatureGreen(cell, creatureHue, creatureEnergy) * 255.0f;
+    blue = creatureBlue(cell, creatureHue, creatureEnergy) * 255.0f;
 
     float distToCreatureCenter = sqrt(dx * dx + dy * dy);
     float brightness;
@@ -601,19 +589,9 @@ renderForegroundSimpleKernel(global int* worldSize, global int* writingToA,
     bool renderSquare = worldXF >= xMin && worldXF <= xMax && worldYF >= yMin && worldYF <= yMax;
     if (renderSquare)
     {
-      if (creatureEnergy[cell] == 0)
-      {
-        red = DEAD_RED;
-        green = DEAD_GREEN;
-        blue = DEAD_BLUE;
-      }
-      else
-      {
-        float hue = creatureHue[cell];
-        red = hueToRed(hue) * 255.0f;
-        green = hueToGreen(hue) * 255.0f;
-        blue = hueToBlue(hue) * 255.0f;
-      }
+      red = creatureRed(cell, creatureHue, creatureEnergy) * 255.0f;
+      green = creatureGreen(cell, creatureHue, creatureEnergy) * 255.0f;
+      blue = creatureBlue(cell, creatureHue, creatureEnergy) * 255.0f;
       screen[index] = componentsToRgb(red, green, blue);
     }
   }
@@ -669,7 +647,8 @@ addFoodKernel(global int* worldSize, global float* worldFood,
 
   if ((getNextRandom(index, randomNumbers) % ADD_FOOD_CHANCE) == 0)
   {
-    worldFoodBackBuffer[index] = min(1.0f, worldFoodBackBuffer[index] + 0.5f);
+    // worldFoodBackBuffer[index] = min(1.0f, worldFoodBackBuffer[index] + 0.9f);
+    worldFoodBackBuffer[index] = 1.0f;
   }
 }
 
@@ -691,7 +670,7 @@ spreadFoodKernel(global int* worldSize, global float* worldFood,
     }
   }
   blurResult /= 9.0f;
-  worldFood[index] = interpolate(blurResult, worldFoodBackBuffer[posToIndexWrapped(x, y, worldSize)], 0.9f);
+  worldFood[index] = interpolate(blurResult, worldFoodBackBuffer[posToIndexWrapped(x, y, worldSize)], 0.8f);
 }
 
 kernel void
@@ -1033,6 +1012,7 @@ inline void nnUpdateInputs(int creature, global int* creatureX, global int* crea
   int visionHeight = visionSize[1];
 
   nnSetInput(creature, memoryIndex++, lastActionSuccess[creature] ? 1.0f : -1.0f, nnNeuronOutputs, neuronsPerNN);
+  nnSetInput(creature, memoryIndex++, tanh(creatureEnergy[creature] / 100.0f) * 3.0f, nnNeuronOutputs, neuronsPerNN);
 
   for (int y = 0; y < visionWidth; y++)
   {
@@ -1047,9 +1027,9 @@ inline void nnUpdateInputs(int creature, global int* creatureX, global int* crea
       if (cellAtPos >= 0 && cellAtPos != creature)
       {
         // read creature color and store in input array
-        nnSetInput(creature, memoryIndex++, creatureRed(creature, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
-        nnSetInput(creature, memoryIndex++, creatureGreen(creature, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
-        nnSetInput(creature, memoryIndex++, creatureBlue(creature, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, creatureRed(cellAtPos, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, creatureGreen(cellAtPos, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
+        nnSetInput(creature, memoryIndex++, creatureBlue(cellAtPos, creatureHue, creatureEnergy), nnNeuronOutputs, neuronsPerNN);
       }
       else if (worldObjects[indexToRead] == WORLD_OBJ_WALL)
       {

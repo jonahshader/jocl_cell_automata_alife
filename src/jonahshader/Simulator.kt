@@ -9,20 +9,22 @@ import kotlin.math.pow
 
 class Simulator(private val worldWidth: Int, private val worldHeight: Int, private val graphics: PApplet, private val numCreatures: Int, openClFilename: String, seed: Long) {
     companion object {
-        const val INIT_ENERGY = 100.toShort()
+        const val INIT_ENERGY = 200.toShort()
         const val INIT_ENERGY_VARIANCE = 6000
 
         const val VISION_WIDTH_EXTEND = 2
-        const val VISION_HEIGHT_EXTEND = 3
+        const val VISION_HEIGHT_EXTEND = 2
         const val VISION_LAYERS = 3 // RGB
         val VISION_SIZE = intArrayOf(VISION_WIDTH_EXTEND * 2 + 1, VISION_HEIGHT_EXTEND * 2 + 1)
-        const val NN_INPUTS = ((VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS) + 1
+        // +2 at the end is for lastActionSuccess and food level
+        const val NN_INPUTS = ((VISION_WIDTH_EXTEND * 2 + 1) * (VISION_HEIGHT_EXTEND * 2 + 1) * VISION_LAYERS) + 2
         // output consists of actions and parameters
         // actions are: nothing, move, rotate, eat, place wall, damage, copy
         // parameters are left/right, hue x, hue y
         const val NN_OUTPUTS = 10
 
-        val NN_LAYERS = intArrayOf(NN_INPUTS, 15, 15, 15, 15, 15, 15, 15, 15, NN_OUTPUTS)
+        val NN_LAYERS = intArrayOf(NN_INPUTS, 15, 15, 15, 15, 15, 15, 15, NN_OUTPUTS)
+//        val NN_LAYERS = intArrayOf(NN_INPUTS, 17, 17, 17, 17, 17, 17, NN_OUTPUTS)
 
 
     }
@@ -259,7 +261,7 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             worldA.array[i] = -1
             worldB.array[i] = -1
             randomNumbers.array[i] = ran.nextInt()
-            worldFood.array[i] = 0.1f + ran.nextFloat().pow(8) * 0.2f
+            worldFood.array[i] = 0.01f + ran.nextFloat().pow(8) * 0.1f
             worldFoodBackBuffer.array[i] = worldFood.array[i]
         }
 
@@ -328,42 +330,42 @@ class Simulator(private val worldWidth: Int, private val worldHeight: Int, priva
             clp.waitForCL()
         }
 
-        if (currentTick % 512 == 0L) {
-            creatureEnergy.copyFromDevice()
-            creatureDirection.copyFromDevice()
-            worldA.copyFromDevice()
-            worldB.copyFromDevice()
-            var creatureCount = 0
-            for (i in creatureEnergy.array) {
-                if (i > 0) creatureCount++
-            }
-            println("Num living creatures: $creatureCount")
-
-            val directions = HashMap<Byte, Int>()
-            for (i in creatureDirection.array) {
-                if (directions.containsKey(i)) {
-                    directions[i] = directions[i]!! + 1
-                } else {
-                    directions[i] = 1
-                }
-            }
-
-            for (i in directions.keys) {
-                println("$i direction: ${directions[i]}")
-            }
-
-            var num0 = 0
-            for (i in worldA.array) {
-                if (i == 0) num0++
-            }
-            println(num0)
-
-            num0 = 0
-            for (i in worldB.array) {
-                if (i == 0)num0++
-            }
-            println(num0)
-        }
+//        if (currentTick % 512 == 0L) {
+//            creatureEnergy.copyFromDevice()
+//            creatureDirection.copyFromDevice()
+//            worldA.copyFromDevice()
+//            worldB.copyFromDevice()
+//            var creatureCount = 0
+//            for (i in creatureEnergy.array) {
+//                if (i > 0) creatureCount++
+//            }
+//            println("Num living creatures: $creatureCount")
+//
+//            val directions = HashMap<Byte, Int>()
+//            for (i in creatureDirection.array) {
+//                if (directions.containsKey(i)) {
+//                    directions[i] = directions[i]!! + 1
+//                } else {
+//                    directions[i] = 1
+//                }
+//            }
+//
+//            for (i in directions.keys) {
+//                println("$i direction: ${directions[i]}")
+//            }
+//
+//            var num0 = 0
+//            for (i in worldA.array) {
+//                if (i == 0) num0++
+//            }
+//            println(num0)
+//
+//            num0 = 0
+//            for (i in worldB.array) {
+//                if (i == 0)num0++
+//            }
+//            println(num0)
+//        }
 
 
         currentTick++
